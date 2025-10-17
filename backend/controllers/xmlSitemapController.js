@@ -15,16 +15,17 @@ exports.generateXmlSitemap = async (req, res, next) => {
     }
 
     try {
-        // 1. INPUT VALIDATION
+        // 1. INPUT VALIDATION (Ensure it's a valid, absolute URL)
+        let validUrl;
         try {
-            new URL(url);
+            validUrl = new URL(url).href;
         } catch (e) {
-            return res.status(400).json({ error: 'Invalid URL format provided.' });
+            return res.status(400).json({ error: 'Invalid URL format provided. Must be absolute (e.g., https://example.com).' });
         }
 
         // 2. CRAWLING
-        // This returns a clean array of absolute URLs
-        const urlsFound = await startCrawl(url);
+        console.log(`Starting XML crawl for: ${validUrl}`);
+        const urlsFound = await startCrawl(validUrl);
         
         if (urlsFound.length === 0) {
             return res.status(404).json({ error: 'Could not crawl or find any internal links on the provided URL.' });
@@ -33,20 +34,21 @@ exports.generateXmlSitemap = async (req, res, next) => {
         // 3. XML BUILDING
         const xmlString = buildXmlSitemap(urlsFound);
         const durationMs = Date.now() - startTime;
+        const xmlSize = Buffer.byteLength(xmlString, 'utf8');
 
         // 4. DATABASE SAVE
         const newSitemap = new Sitemap({
-            // Note: Replace 'test_user' with actual user ID later
             userId: 'test_user', 
-            startUrl: url,
+            startUrl: validUrl,
             type: 'xml',
             content: xmlString,
-            urlsFound: urlsFound.map(loc => ({ loc })), // Simple structure for saving all URLs
+            urlsFound: urlsFound.map(loc => ({ loc })),
             durationMs: durationMs,
-            sizeBytes: Buffer.byteLength(xmlString, 'utf8')
+            sizeBytes: xmlSize
         });
 
         const savedSitemap = await newSitemap.save();
+        console.log(`XML Sitemap saved with ID: ${savedSitemap._id}`);
 
         // 5. RESPONSE
         res.status(200).json({
@@ -58,21 +60,33 @@ exports.generateXmlSitemap = async (req, res, next) => {
         });
 
     } catch (error) {
-        // Pass the error to the main error handler in server.js
+        console.error("Error in generateXmlSitemap:", error.message);
         next(error);
     }
 };
 
 
 /**
- * Placeholder for downloading the XML file.
- * We will implement the actual file download logic later.
+ * Fetches the saved XML Sitemap content by ID and sends it to the client as a downloadable file.
  */
-exports.downloadXmlSitemap = (req, res) => {
-    const { id } = req.params;
-    // NOTE: In the future, fetch the sitemap from DB by ID and send it as a file.
-    res.status(501).json({ 
-        message: `Download functionality for Sitemap ID ${id} is not yet implemented.`,
-        hint: 'Implement fetching from DB and res.download()'
-    });
+exports.downloadXmlSitemap = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const sitemap = await Sitemap.findById(id);
+
+        if (!sitemap) {
+            return res.status(404).json({ error: "XML Sitemap not found." });
+        }
+        
+        // 1. Set headers for file download
+        res.setHeader('Content-disposition', `attachment; filename=sitemap-${sitemap._id}.xml`);
+        res.setHeader('Content-type', 'application/xml');
+
+        // 2. Send the saved XML content
+        res.send(sitemap.content);
+
+    } catch (error) {
+        console.error("Error in downloadXmlSitemap:", error.message);
+        next(error);
+    }
 };
