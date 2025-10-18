@@ -1,92 +1,110 @@
-const Sitemap = require('../models/Sitemap');
-const { startCrawl } = require('../utils/crawler');
+const { validateUrl } = require('../utils/urlValidator');
+const { startSafeCrawl } = require('../utils/intelligentCrawler');
 const { buildXmlSitemap } = require('../utils/xmlBuilder');
 const URL = require('url').URL;
 
-/**
- * Handles the generation of an XML Sitemap for a given URL.
- */
 exports.generateXmlSitemap = async (req, res, next) => {
     const { url } = req.body;
-    const startTime = Date.now();
 
     if (!url) {
         return res.status(400).json({ error: 'Starting URL is required.' });
     }
 
     try {
-        // 1. INPUT VALIDATION (Ensure it's a valid, absolute URL)
+        // 1. Validate URL format
         let validUrl;
         try {
             validUrl = new URL(url).href;
         } catch (e) {
-            return res.status(400).json({ error: 'Invalid URL format provided. Must be absolute (e.g., https://example.com).' });
+            return res.status(400).json({ 
+                error: 'Invalid URL format.',
+                suggestion: 'Please enter a valid URL (e.g., https://example.com)'
+            });
         }
 
-        // 2. CRAWLING
-        console.log(`Starting XML crawl for: ${validUrl}`);
-        const urlsFound = await startCrawl(validUrl);
+        // 2. Validate URL safety
+        console.log(`Validating URL: ${validUrl}`);
+        const validation = await validateUrl(validUrl);
+
+        // 3. If not safe, return error with details
+        if (!validation.canProceed) {
+            return res.status(400).json({
+                error: 'Cannot crawl this website safely',
+                issues: validation.issues,
+                warnings: validation.warnings,
+                isSafe: validation.isSafe,
+                message: 'This website has security issues. We cannot crawl it to protect your safety.'
+            });
+        }
+
+        // 4. If there are warnings, include them in response
+        if (validation.warnings.length > 0) {
+            console.log('⚠️ Warnings:', validation.warnings);
+        }
+
+        // 5. Proceed with safe crawling
+        console.log(`Starting safe crawl for: ${validUrl}`);
+        const urlsFound = await startSafeCrawl(validUrl);
         
         if (urlsFound.length === 0) {
-            return res.status(404).json({ error: 'Could not crawl or find any internal links on the provided URL.' });
+            return res.status(404).json({ 
+                error: 'No URLs found.',
+                suggestion: 'The site might have no internal links or uses JavaScript for navigation.'
+            });
         }
 
-        // 3. XML BUILDING
+        // 6. Build XML
         const xmlString = buildXmlSitemap(urlsFound);
-        const durationMs = Date.now() - startTime;
-        const xmlSize = Buffer.byteLength(xmlString, 'utf8');
 
-        // 4. DATABASE SAVE
-        const newSitemap = new Sitemap({
-            userId: 'test_user', 
-            startUrl: validUrl,
-            type: 'xml',
-            content: xmlString,
-            urlsFound: urlsFound.map(loc => ({ loc })),
-            durationMs: durationMs,
-            sizeBytes: xmlSize
-        });
-
-        const savedSitemap = await newSitemap.save();
-        console.log(`XML Sitemap saved with ID: ${savedSitemap._id}`);
-
-        // 5. RESPONSE
+        // 7. Return response with warnings if any
         res.status(200).json({
-            message: 'XML Sitemap generated and saved successfully.',
-            sitemapId: savedSitemap._id,
+            message: 'XML Sitemap generated successfully.',
+            xml: xmlString,
             urlCount: urlsFound.length,
-            duration: durationMs,
-            xmlPreview: xmlString.substring(0, 500) + '...' // Send a small preview
+            warnings: validation.warnings.length > 0 ? validation.warnings : undefined
         });
 
     } catch (error) {
         console.error("Error in generateXmlSitemap:", error.message);
-        next(error);
+        
+        // Provide helpful error messages
+        if (error.message.includes('SSL') || error.message.includes('certificate')) {
+            return res.status(400).json({
+                error: 'SSL Security Error',
+                message: 'This website has SSL/TLS security issues. We cannot crawl it safely.',
+                suggestion: 'Try a different website or contact the site owner to fix their SSL certificate.'
+            });
+        }
+        
+        res.status(500).json({ 
+            error: 'Failed to generate sitemap',
+            message: error.message
+        });
     }
 };
 
-
-/**
- * Fetches the saved XML Sitemap content by ID and sends it to the client as a downloadable file.
- */
 exports.downloadXmlSitemap = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const sitemap = await Sitemap.findById(id);
-
-        if (!sitemap) {
-            return res.status(404).json({ error: "XML Sitemap not found." });
-        }
         
-        // 1. Set headers for file download
-        res.setHeader('Content-disposition', `attachment; filename=sitemap-${sitemap._id}.xml`);
-        res.setHeader('Content-type', 'application/xml');
-
-        // 2. Send the saved XML content
-        res.send(sitemap.content);
-
+        // TODO: Implement your download logic here
+        // This could involve:
+        // - Retrieving stored sitemap from database/cache using the id
+        // - Generating the sitemap on-the-fly
+        // - Setting appropriate headers for file download
+        
+        // Placeholder response for now:
+        res.status(200).json({
+            message: 'Download functionality - to be implemented',
+            id: id,
+            note: 'Implement your sitemap storage and retrieval logic here'
+        });
+        
     } catch (error) {
         console.error("Error in downloadXmlSitemap:", error.message);
-        next(error);
+        res.status(500).json({ 
+            error: 'Failed to download sitemap',
+            message: error.message
+        });
     }
 };

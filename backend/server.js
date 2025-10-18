@@ -21,9 +21,10 @@ mongoose.connect(process.env.MONGODB_URI, {
 .catch((err) => console.error('❌ MongoDB Connection Error:', err));
 
 // Routes
-app.use('/api/html-sitemap', require('./routes/htmlSitemapRoutes'));
-app.use('/api/xml-sitemap', require('./routes/xmlSitemapRoutes'));
-app.use('/api/visual-sitemap', require('./routes/visualSitemapRoutes'));
+// Routes - Change these lines in server.js
+app.use('/api', require('./routes/xmlSitemapRoutes'));
+app.use('/api', require('./routes/htmlSitemapRoutes'));
+app.use('/api', require('./routes/visualSitemapRoutes'));
 
 // Health Check
 app.get('/api/health', (req, res) => {
