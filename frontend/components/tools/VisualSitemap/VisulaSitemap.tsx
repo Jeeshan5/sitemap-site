@@ -67,22 +67,78 @@ export default function VisualSitemap() {
     }
   }
 
-  const renderNode = (node: SitemapNode, level: number = 0) => {
+  // Color palette for different levels
+  const getNodeColor = (level: number, index: number) => {
+    const colors = [
+      'bg-emerald-500 text-white border-emerald-600', // Homepage
+      'bg-blue-500 text-white border-blue-600',
+      'bg-red-500 text-white border-red-600',
+      'bg-purple-500 text-white border-purple-600',
+      'bg-orange-500 text-white border-orange-600',
+      'bg-teal-500 text-white border-teal-600',
+      'bg-yellow-500 text-white border-yellow-600',
+      'bg-pink-500 text-white border-pink-600',
+      'bg-indigo-500 text-white border-indigo-600'
+    ]
+    
+    if (level === 0) return colors[0]
+    return colors[(index % (colors.length - 1)) + 1]
+  }
+
+  const renderNode = (node: SitemapNode, level: number = 0, index: number = 0) => {
+    const hasChildren = node.children && node.children.length > 0
+    
     return (
-      <div key={node.url} className="flex flex-col items-center">
+      <div key={node.url} className="flex flex-col items-center relative">
+        {/* Vertical connector line to parent */}
+        {level > 0 && (
+          <div className="w-0.5 h-8 bg-gray-400 mb-2"></div>
+        )}
+        
+        {/* Node box */}
         <div
-          className={`bg-white border-2 border-teal-500 rounded-lg p-4 shadow-md hover:shadow-lg transition ${
-            level === 0 ? 'border-4 border-teal-600' : ''
-          }`}
-          style={{ minWidth: '200px', marginLeft: level * 40 }}
+          className={`${getNodeColor(level, index)} rounded-lg px-6 py-3 shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer border-2 relative z-10`}
+          style={{ 
+            minWidth: level === 0 ? '200px' : '180px',
+            maxWidth: '250px'
+          }}
         >
-          <p className="font-semibold text-gray-800 truncate">{node.title || 'Untitled'}</p>
-          <p className="text-xs text-gray-500 truncate">{node.url}</p>
+          <p className="font-semibold text-center truncate text-sm">
+            {node.title || 'Untitled'}
+          </p>
+          {level === 0 && (
+            <p className="text-xs text-center opacity-90 truncate mt-1">{node.url}</p>
+          )}
         </div>
-        {node.children && node.children.length > 0 && (
-          <div className="flex gap-4 mt-6">
-            {node.children.map((child: SitemapNode) => renderNode(child, level + 1))}
-          </div>
+
+        {/* Children container */}
+        {hasChildren && (
+          <>
+            {/* Vertical line from parent to children row */}
+            <div className="w-0.5 h-8 bg-gray-400 mt-2"></div>
+            
+            {/* Horizontal connector line */}
+            {node.children!.length > 1 && (
+              <div 
+                className="h-0.5 bg-gray-400 absolute"
+                style={{
+                  width: `${(node.children!.length - 1) * 220}px`,
+                  top: level === 0 ? '120px' : '100px',
+                  left: '50%',
+                  transform: 'translateX(-50%)'
+                }}
+              ></div>
+            )}
+            
+            {/* Children nodes in a horizontal row */}
+            <div className="flex justify-center items-start gap-8 mt-2">
+              {node.children!.map((child: SitemapNode, idx: number) => (
+                <div key={child.url} className="relative">
+                  {renderNode(child, level + 1, idx)}
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     )
@@ -90,7 +146,7 @@ export default function VisualSitemap() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-50 to-cyan-100 p-8">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <div className="bg-white rounded-lg shadow-xl p-8 mb-6">
           <h1 className="text-4xl font-bold text-gray-800 mb-2">Visual Sitemap Builder</h1>
           <p className="text-gray-600 mb-8">
@@ -195,16 +251,16 @@ export default function VisualSitemap() {
             </div>
 
             <div
-              className="overflow-auto border border-gray-200 rounded-lg p-8 bg-gray-50"
+              className="overflow-auto border border-gray-200 rounded-lg p-12 bg-gray-50"
               style={{
                 transform: `scale(${zoom / 100})`,
-                transformOrigin: 'top left',
-                minHeight: '400px'
+                transformOrigin: 'top center',
+                minHeight: '500px'
               }}
             >
               {sitemapData.pages ? (
-                <div className="flex flex-col items-center gap-6">
-                  {sitemapData.pages.map((page: SitemapNode) => renderNode(page))}
+                <div className="flex flex-col items-center gap-0">
+                  {sitemapData.pages.map((page: SitemapNode, idx: number) => renderNode(page, 0, idx))}
                 </div>
               ) : (
                 <div className="text-center text-gray-500 p-12">

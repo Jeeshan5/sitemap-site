@@ -11,16 +11,6 @@
       "static/chunks/main-app.js",
       "static/chunks/app/page.js"
     ],
-    "/xml-generator/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/xml-generator/page.js"
-    ],
-    "/html-generator/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/html-generator/page.js"
-    ],
     "/visual-builder/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
