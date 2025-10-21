@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { Loader2, ZoomIn, ZoomOut, AlertTriangle, XCircle } from 'lucide-react'
 
+// Environment variable for API URL
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+
 interface SitemapNode {
   url: string
   title?: string
@@ -42,7 +45,7 @@ export default function VisualSitemap() {
     setWarnings([])
 
     try {
-      const response = await fetch('http://localhost:5000/api/generate-visual', {
+      const response = await fetch(`${API_URL}/generate-visual`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url })

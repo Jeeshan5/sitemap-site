@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { Download, Loader2, Copy, Check, AlertTriangle, XCircle } from 'lucide-react'
 
+// Environment variable for API URL
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+
 interface ValidationIssue {
   error?: string
   issues?: string[]
@@ -32,7 +35,7 @@ export default function HtmlSitemap() {
     setWarnings([])
 
     try {
-      const response = await fetch('http://localhost:5000/api/generate-html', {
+      const response = await fetch(`${API_URL}/generate-html`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url })

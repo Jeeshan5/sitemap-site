@@ -29,9 +29,10 @@ export default function XmlSitemap() {
     setError(null)
     setResult('')
     setWarnings([])
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
 
     try {
-      const response = await fetch('http://localhost:5000/api/generate-xml', {
+      const response = await fetch(`${API_URL}/generate-xml`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url })

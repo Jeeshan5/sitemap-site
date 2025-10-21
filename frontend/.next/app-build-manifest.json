@@ -11,10 +11,10 @@
       "static/chunks/main-app.js",
       "static/chunks/app/page.js"
     ],
-    "/visual-builder/page": [
+    "/xml-generator/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/visual-builder/page.js"
+      "static/chunks/app/xml-generator/page.js"
     ]
   }
 }

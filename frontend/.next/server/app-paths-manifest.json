@@ -1,5 +1,4 @@
 {
-  "/favicon.ico/route": "app/favicon.ico/route.js",
   "/page": "app/page.js",
-  "/visual-builder/page": "app/visual-builder/page.js"
+  "/xml-generator/page": "app/xml-generator/page.js"
 }
