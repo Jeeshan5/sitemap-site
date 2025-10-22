@@ -1,56 +1,51 @@
-import Link from 'next/link';
-import { Settings, Code, Zap } from 'lucide-react';
+"use client";
+import React, { FC } from 'react';
+// Import only the necessary items from the shared layout file
+import { Code, List, Trello, LucideIcon } from 'lucide-react'; 
 
-const HomePage = () => {
-  return (
-    <div className="text-center py-16 px-4 sm:px-6 lg:px-8">
-      <h1 className="text-5xl font-extrabold text-gray-900 tracking-tight sm:text-6xl">
-        Sitemap Tools Kit
-      </h1>
-      <p className="mt-4 max-w-2xl mx-auto text-xl text-gray-600">
-        Your comprehensive suite for generating XML, HTML, and Visual Sitemaps, boosting SEO and UX planning.
-      </p>
+// --- Generator Data (Filtered for Home Buttons) ---
+interface GeneratorLink {
+    href: string;
+    label: string;
+    Icon: LucideIcon;
+}
 
-      <div className="mt-12 grid grid-cols-1 gap-8 md:grid-cols-3 max-w-5xl mx-auto">
-        
-        {/* XML Card */}
-        <div className="bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300">
-          <Code className="h-10 w-10 text-teal-600 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900">XML Generator</h2>
-          <p className="mt-2 text-gray-500">
-            Crawl your site and generate a valid sitemap.xml file for search engines.
-          </p>
-          <Link href="/xml-generator" className="mt-4 inline-block text-teal-600 hover:text-teal-800 font-medium">
-            Start Generating &rarr;
-          </Link>
+const generatorLinks: GeneratorLink[] = [
+    { href: '/xml-generator', label: 'XML Sitemap Generator', Icon: Code },
+    { href: '/html-generator', label: 'HTML Sitemap Generator', Icon: List },
+    { href: '/visual-builder', label: 'Visual Sitemap Builder', Icon: Trello },
+];
+
+/**
+ * The main content component for the Home route (/).
+ * This displays the three large buttons that navigate to the generator pages.
+ */
+const HomePage: FC = () => {
+    return (
+        <div className="bg-gray-800 p-8 md:p-12 rounded-2xl shadow-2xl border border-teal-500/20 text-center">
+            <h1 className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-cyan-500 mb-10">
+                Choose Your Sitemap Tool
+            </h1>
+            
+            <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                {generatorLinks.map((link) => (
+                    <a 
+                        key={link.href}
+                        href={link.href} // This uses your Next.js router
+                        className="flex flex-col items-center justify-center p-8 h-48 bg-gray-700 rounded-xl 
+                                   transition duration-300 transform hover:scale-105 hover:bg-gray-700/80
+                                   shadow-lg hover:shadow-teal-500/50 hover:shadow-2xl group border border-gray-600 hover:border-teal-500"
+                    >
+                        <link.Icon className="w-10 h-10 mb-3 text-teal-400 group-hover:text-cyan-400 transition-colors" />
+                        <h2 className="text-xl font-bold text-white mb-1 group-hover:text-teal-300 transition-colors">
+                            {link.label}
+                        </h2>
+                        <p className="text-sm text-gray-400 font-medium">{link.label.split(' ')[0]} Tool</p>
+                    </a>
+                ))}
+            </div>
         </div>
-
-        {/* HTML Card */}
-        <div className="bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300">
-          <Zap className="h-10 w-10 text-orange-600 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900">HTML Generator</h2>
-          <p className="mt-2 text-gray-500">
-            Create user-friendly, nested HTML sitemaps for navigation and accessibility.
-          </p>
-          <Link href="/html-generator" className="mt-4 inline-block text-orange-600 hover:text-orange-800 font-medium">
-            Start Building &rarr;
-          </Link>
-        </div>
-
-        {/* Visual Card */}
-        <div className="bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300">
-          <Settings className="h-10 w-10 text-blue-600 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900">Visual Builder</h2>
-          <p className="mt-2 text-gray-500">
-            Map out site hierarchy visually for planning and collaboration.
-          </p>
-          <Link href="/visual-builder" className="mt-4 inline-block text-blue-600 hover:text-blue-800 font-medium">
-            Start Mapping &rarr;
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 export default HomePage;

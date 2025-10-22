@@ -1,6 +1,7 @@
 // ... imports ...
-import AppLayout from '../components/shared/AppLayout';
+import{ AppLayout} from '../components/shared/AppLayout';
 import './globals.css'
+
 export default function RootLayout({ children }: { children: React.ReactNode; }) {
   return (
     <html lang="en">

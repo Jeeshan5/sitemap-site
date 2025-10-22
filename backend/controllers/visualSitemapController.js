@@ -93,13 +93,7 @@ exports.saveVisualSitemap = async (req, res, next) => {
         }
         
         // TODO: Implement your save logic here
-        // This could involve:
-        // - Saving to database
-        // - Generating a unique ID
-        // - Storing the sitemap data
-        
-        // Placeholder response for now:
-        const sitemapId = Date.now().toString(); // Temporary ID
+        const sitemapId = Date.now().toString();
         
         res.status(200).json({
             message: 'Visual sitemap saved successfully',
@@ -116,21 +110,91 @@ exports.saveVisualSitemap = async (req, res, next) => {
     }
 };
 
-// Helper function to build hierarchy
+// FIXED: Proper hierarchical tree builder
 function buildHierarchy(urls, baseUrl) {
-    const tree = [];
+    if (!urls || urls.length === 0) return [];
+
     const base = new URL(baseUrl).origin;
-
+    
+    // Create a map to store all nodes
+    const nodeMap = new Map();
+    
+    // First pass: Create all nodes
     urls.forEach(url => {
-        const path = url.replace(base, '').split('/').filter(p => p);
-        const title = path.length > 0 ? path[path.length - 1] : 'Home';
+        const path = url.replace(base, '');
+        const segments = path.split('/').filter(s => s);
         
-        tree.push({
-            url: url,
-            title: title.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-            children: []
+        // Create full path for this URL
+        let currentPath = '';
+        segments.forEach((segment, index) => {
+            const previousPath = currentPath;
+            currentPath += '/' + segment;
+            
+            if (!nodeMap.has(currentPath)) {
+                const fullUrl = base + currentPath;
+                const title = segment
+                    .replace(/-/g, ' ')
+                    .replace(/_/g, ' ')
+                    .replace(/\.(html|php|aspx)$/i, '')
+                    .replace(/\b\w/g, l => l.toUpperCase());
+                
+                nodeMap.set(currentPath, {
+                    url: fullUrl,
+                    title: title || 'Home',
+                    path: currentPath,
+                    parentPath: previousPath || null,
+                    children: []
+                });
+            }
         });
+        
+        // Add root/homepage if not already added
+        if (segments.length === 0 || url === baseUrl) {
+            if (!nodeMap.has('/')) {
+                nodeMap.set('/', {
+                    url: baseUrl,
+                    title: 'Home',
+                    path: '/',
+                    parentPath: null,
+                    children: []
+                });
+            }
+        }
     });
-
-    return tree;
+    
+    // Second pass: Build parent-child relationships
+    const rootNodes = [];
+    
+    nodeMap.forEach((node, path) => {
+        if (node.parentPath === null || node.parentPath === '') {
+            // This is a root node
+            rootNodes.push(node);
+        } else {
+            // Find parent and add this node as a child
+            const parent = nodeMap.get(node.parentPath);
+            if (parent) {
+                parent.children.push(node);
+            } else {
+                // If parent not found, treat as root
+                rootNodes.push(node);
+            }
+        }
+    });
+    
+    // Clean up: Remove path and parentPath from final output
+    const cleanNode = (node) => {
+        const cleaned = {
+            url: node.url,
+            title: node.title,
+            children: node.children.map(child => cleanNode(child))
+        };
+        return cleaned;
+    };
+    
+    return rootNodes.map(node => cleanNode(node));
 }
+
+module.exports = {
+    processVisualSitemap: exports.processVisualSitemap,
+    saveVisualSitemap: exports.saveVisualSitemap
+};

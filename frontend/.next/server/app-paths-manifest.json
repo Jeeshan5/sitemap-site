@@ -1,4 +1,6 @@
 {
   "/page": "app/page.js",
-  "/xml-generator/page": "app/xml-generator/page.js"
+  "/xml-generator/page": "app/xml-generator/page.js",
+  "/html-generator/page": "app/html-generator/page.js",
+  "/visual-builder/page": "app/visual-builder/page.js"
 }

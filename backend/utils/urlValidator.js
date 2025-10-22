@@ -66,17 +66,8 @@ async function validateUrl(url) {
             }
         }
 
-        // 3. Check robots.txt (ethical crawling)
-        try {
-            const robotsUrl = `${parsedUrl.origin}/robots.txt`;
-            const robotsResponse = await axios.get(robotsUrl, { timeout: 5000 });
-            
-            if (robotsResponse.data.toLowerCase().includes('disallow: /')) {
-                warnings.push('Site may restrict crawlers via robots.txt');
-            }
-        } catch {
-            // robots.txt doesn't exist - that's fine
-        }
+        // 3. REMOVED: robots.txt check
+        // We no longer check robots.txt, allowing unrestricted crawling
 
     } catch (error) {
         issues.push('Invalid URL format');
