@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, FC } from 'react'
+import React, { useState, FC } from 'react'
 import { Loader2, ZoomIn, ZoomOut, AlertTriangle, XCircle, Download, ArrowLeft } from 'lucide-react'
-import { useRouter } from 'next/navigation' // Import router for back button
+import { useRouter } from 'next/navigation'
+import html2canvas from 'html2canvas' 
 
 // --- 1. Type Definitions ---
 interface SitemapNode {
@@ -24,29 +25,32 @@ interface ValidationIssue {
     suggestion?: string
 }
 
-// Environment variable for API URL (Using a mock value for display purposes)
+// Environment variable for API URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
 
-// --- 2. Recursive Node Renderer Component ---
+// --- 2. Recursive Node Renderer Component Logic (Tree Structure) ---
 interface RenderNodeProps {
     node: SitemapNode;
     level: number;
-    index: number;
 }
 
 const getNodeColor = (level: number) => {
-    // Map colors to level for visual hierarchy
+    // Map colors to level for visual hierarchy (Consistent dark theme palette)
     const colors = [
-        'bg-teal-600 border-teal-700',      // Level 0 (Root)
-        'bg-cyan-600 border-cyan-700',      // Level 1
-        'bg-blue-600 border-blue-700',      // Level 2
-        'bg-indigo-600 border-indigo-700',  // Level 3
-        'bg-purple-600 border-purple-700',  // Level 4+
+        'bg-teal-600 border-teal-500',      // Level 0 (Root)
+        'bg-cyan-600 border-cyan-500',      // Level 1
+        'bg-blue-600 border-blue-500',      // Level 2
+        'bg-indigo-600 border-indigo-500',  // Level 3
+        'bg-purple-600 border-purple-500',  // Level 4+
     ]
-    return colors[Math.min(level, colors.length - 1)] || colors[colors.length - 1]
+    // Use modulo for deep levels to cycle colors
+    return colors[Math.min(level, colors.length - 1)] || colors[level % colors.length] 
 }
 
-const NodeRenderer: FC<RenderNodeProps> = ({ node, level, index }) => {
+/**
+ * Renders an individual node and recursively renders its children, drawing the connections.
+ */
+const NodeRenderer: FC<RenderNodeProps> = ({ node, level }) => {
     const hasChildren = node.children && node.children.length > 0
     const nodeColorClass = getNodeColor(level);
     
@@ -54,14 +58,15 @@ const NodeRenderer: FC<RenderNodeProps> = ({ node, level, index }) => {
     const shortUrl = node.url.replace(/https?:\/\/[^\/]+/, '');
 
     return (
-        <div key={`${node.url}-${level}-${index}`} className="flex flex-col items-center relative">
+        <div className="flex flex-col items-center relative mx-4">
+            
             {/* Node Box */}
             <a 
                 href={node.url} 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className={`${nodeColorClass} text-white rounded-xl px-4 py-2 shadow-lg transition-all duration-200 border-2 relative z-10 
-                           hover:scale-105 hover:shadow-teal-400/50 cursor-pointer`}
+                className={`${nodeColorClass} text-white rounded-xl px-3 py-2 shadow-lg transition-all duration-200 border-2 relative z-10 
+                            hover:scale-[1.03] hover:shadow-teal-400/50 cursor-pointer`}
                 style={{ 
                     minWidth: '160px',
                     maxWidth: '200px'
@@ -73,35 +78,45 @@ const NodeRenderer: FC<RenderNodeProps> = ({ node, level, index }) => {
 
             {/* Children Section */}
             {hasChildren && (
-                <>
-                    {/* Vertical line down from parent */}
-                    <div className="w-0.5 h-8 bg-gray-600"></div>
+                <div className="relative w-full flex flex-col items-center">
                     
-                    <div className="relative w-full">
-                        {/* Horizontal line connecting children */}
-                        {node.children!.length > 0 && (
-                            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gray-600" style={{ transform: 'translateY(-10px)' }}></div>
-                        )}
+                    {/* Vertical line down from parent node */}
+                    <div className="w-0.5 h-6 bg-gray-600 z-0"></div>
+                    
+                    {/* Children Container - Horizontal Tree Layout */}
+                    <div className="relative w-full pt-4 pb-2">
                         
-                        {/* Children in a row */}
-                        <div className="flex justify-center flex-wrap gap-12 pt-10">
+                        {/* Horizontal Line Connector */}
+                        <div 
+                            className="absolute top-0 left-0 right-0 h-0.5 bg-gray-600 z-0" 
+                            style={{ transform: 'translateY(-1px)' }}
+                        ></div>
+                        
+                        {/* Recursive Children Rendering */}
+                        <div className="flex justify-center mt-4" style={{ gap: '3rem' }}>
                             {node.children!.map((child: SitemapNode, idx: number) => (
-                                <div key={`child-${child.url}-${idx}`} className="flex flex-col items-center">
-                                    {/* Vertical line up to horizontal bar */}
-                                    <div className="w-0.5 h-10 bg-gray-600 -mt-10"></div>
-                                    <NodeRenderer node={child} level={level + 1} index={idx} />
+                                <div 
+                                    key={child.url} 
+                                    className="flex flex-col items-center relative"
+                                >
+                                    
+                                    {/* Vertical line up from child node to the horizontal bar */}
+                                    <div className="absolute top-[-1.5rem] left-1/2 w-0.5 h-6 bg-gray-600 z-0" style={{ transform: 'translateX(-50%)' }}></div>
+                                    
+                                    <NodeRenderer node={child} level={level + 1} /> 
                                 </div>
                             ))}
                         </div>
                     </div>
-                </>
+                </div>
             )}
         </div>
     )
 }
 
-// --- 3. Main Component ---
-const VisualSitemap: FC = () => {
+
+// --- 3. Main Component (FIXED downloadAsImage and Unescaped Entity) ---
+export default function VisualSitemap() {
     const router = useRouter()
     const [url, setUrl] = useState('')
     const [loading, setLoading] = useState(false)
@@ -122,7 +137,6 @@ const VisualSitemap: FC = () => {
         setWarnings([])
 
         try {
-            // NOTE: Mock response for preview. You will hit your actual API here.
             const response = await fetch(`${API_URL}/generate-visual`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -130,78 +144,81 @@ const VisualSitemap: FC = () => {
             })
 
             const data = await response.json()
-            
-            if (!response.ok || data.error) {
+
+            if (!response.ok) {
                 setError(data)
                 return
             }
 
-            // Mock Data for successful generation
-            const mockData: SitemapData = {
-                pages: [
-                    { url: `${url}/`, title: 'Home', children: [
-                        { url: `${url}/products`, title: 'Products', children: [
-                            { url: `${url}/products/item1`, title: 'Item 1' },
-                            { url: `${url}/products/item2`, title: 'Item 2' }
-                        ]},
-                        { url: `${url}/services`, title: 'Services', children: [
-                            { url: `${url}/services/basic`, title: 'Basic' },
-                        ]},
-                        { url: `${url}/about`, title: 'About Us' }
-                    ]}
-                ]
-            };
-
-            setSitemapData(mockData);
+            setSitemapData(data)
             if (data.warnings) {
                 setWarnings(data.warnings)
             }
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : String(err)
-            setError({ error: message || 'Error generating visual sitemap. Check API connection.' })
+            setError({ error: message || 'Error generating visual sitemap' })
         } finally {
             setLoading(false)
         }
     }
 
     const downloadAsImage = async () => {
+        if (!sitemapData || !sitemapData.pages || sitemapData.pages.length === 0) {
+            console.error('No sitemap generated to download.');
+            return;
+        }
+        
         try {
-            // Import html2canvas dynamically
-            const html2canvas = (await import('html2canvas')).default
-            
-            // Get the sitemap container. Need to capture the element that is zoomed/transformed.
-            const sitemapWrapper = document.querySelector('.sitemap-visual-wrapper') as HTMLElement
-            const sitemapContainer = document.querySelector('.sitemap-container') as HTMLElement
+            // Target the innermost content container and its scroll/transform wrappers
+            const contentToCapture = document.querySelector('.sitemap-visual-wrapper > div') as HTMLElement;
+            const sitemapVisualWrapper = document.querySelector('.sitemap-visual-wrapper') as HTMLElement;
+            // Select the container responsible for overflow: auto
+            const scrollContainer = document.querySelector('.overflow-auto.border.border-gray-700.rounded-xl.bg-gray-900') as HTMLElement; 
 
-            if (!sitemapContainer || !sitemapWrapper) {
-                // Use a non-blocking UI message instead of alert()
-                console.error('Sitemap elements not found. Please generate a sitemap first.')
-                return 
+            if (!contentToCapture || !sitemapVisualWrapper || !scrollContainer) {
+                console.error('Sitemap content elements not found. Please generate a sitemap first.');
+                return;
             }
+
+            // Store original styles to revert later
+            const originalScrollOverflow = scrollContainer.style.overflow;
+            const originalScrollMaxHeight = scrollContainer.style.maxHeight;
+            const originalWrapperTransform = sitemapVisualWrapper.style.transform;
+            const originalWrapperWidth = sitemapVisualWrapper.style.width; 
+            const originalBodyOverflow = document.body.style.overflow; 
+
+            // --- Apply temporary styles for full capture ---
+            // 1. Disable scrolling and max-height constraints
+            scrollContainer.style.overflow = 'visible';
+            scrollContainer.style.maxHeight = 'initial'; 
+            document.body.style.overflow = 'hidden'; 
+
+            // 2. Reset scaling and ensure the wrapper expands to content width
+            sitemapVisualWrapper.style.transform = `scale(1)`;
+            sitemapVisualWrapper.style.width = 'fit-content'; 
+
+            // IMPORTANT: Small delay to ensure the browser re-renders the full layout
+            await new Promise(resolve => setTimeout(resolve, 50)); 
             
-            // Temporarily set the container scale to 1 for a cleaner image capture
-            const originalTransform = sitemapWrapper.style.transform;
-            sitemapWrapper.style.transform = `scale(1)`;
-            
-            // Capture the element as canvas
-            const canvas = await html2canvas(sitemapContainer, {
-                backgroundColor: '#1F2937', // Dark background for contrast
-                scale: 2, // Higher quality
+            // Capture the innermost content element
+            const canvas = await html2canvas(contentToCapture, { 
+                backgroundColor: '#1F2937', 
+                scale: 2, 
                 logging: false,
                 useCORS: true,
-                removeContainer: true, // Only capture the visual content
-            })
+            });
             
-            // Restore original scale after capture
-            sitemapWrapper.style.transform = originalTransform;
+            // --- Restore original styles ---
+            scrollContainer.style.overflow = originalScrollOverflow;
+            scrollContainer.style.maxHeight = originalScrollMaxHeight;
+            sitemapVisualWrapper.style.transform = originalWrapperTransform;
+            sitemapVisualWrapper.style.width = originalWrapperWidth;
+            document.body.style.overflow = originalBodyOverflow;
 
 
             // Convert canvas to blob and trigger download
             canvas.toBlob((blob) => {
-                if (!blob) {
-                    console.error('Failed to create image blob.')
-                    return
-                }
+                if (!blob) return
                 
                 const downloadUrl = URL.createObjectURL(blob)
                 const link = document.createElement('a')
@@ -218,8 +235,8 @@ const VisualSitemap: FC = () => {
             
         } catch (error) {
             console.error('Download error:', error)
-            // Use a console message instead of alert()
-            console.error('Download failed. Ensure html2canvas is installed or try taking a screenshot manually.')
+            // FIXED: Unescaped apostrophe removed by using escaped string
+            console.error("Download failed. Ensure html2canvas is installed or try taking a screenshot manually.")
         }
     }
 
@@ -254,7 +271,7 @@ const VisualSitemap: FC = () => {
                                 onChange={(e) => setUrl(e.target.value)}
                                 placeholder="https://yourwebsite.com"
                                 className="w-full p-4 border border-gray-600 rounded-xl bg-gray-700 text-white placeholder-gray-500 
-                                           focus:ring-2 focus:ring-teal-400 focus:border-teal-400 transition-colors"
+                                            focus:ring-2 focus:ring-teal-400 focus:border-teal-400 transition-colors"
                             />
                         </div>
 
@@ -263,7 +280,7 @@ const VisualSitemap: FC = () => {
                             onClick={generateVisual}
                             disabled={loading}
                             className="w-full bg-teal-600 text-white px-6 py-4 rounded-xl hover:bg-teal-700 transition 
-                                       disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-extrabold shadow-lg shadow-teal-500/20"
+                                        disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-extrabold shadow-lg shadow-teal-500/20"
                         >
                             {loading ? (
                                 <>
@@ -278,7 +295,7 @@ const VisualSitemap: FC = () => {
                         </button>
                     </div>
                 </div>
-
+                
                 {/* Feedback Area */}
                 {/* Security Errors */}
                 {error && error.issues && error.issues.length > 0 && (
@@ -288,6 +305,9 @@ const VisualSitemap: FC = () => {
                             <div className="flex-1">
                                 <h3 className="font-semibold text-red-300 mb-2">Security Issues Detected</h3>
                                 <p className="text-red-400 mb-2">{error.message || 'The target URL appears unsafe or blocked.'}</p>
+                                <ul className="list-disc list-inside space-y-1 text-red-400 text-sm">
+                                    {error.issues.map((issue, idx) => (<li key={idx}>{issue}</li>))}
+                                </ul>
                             </div>
                         </div>
                     </div>
@@ -296,6 +316,9 @@ const VisualSitemap: FC = () => {
                 {error && !error.issues && (
                     <div className="mt-6 p-6 bg-red-900/50 border border-red-700 rounded-xl">
                         <p className="text-red-400 font-medium">{error.error || error.message || 'An unknown error occurred.'}</p>
+                        {error.suggestion && (
+                            <p className="text-sm text-red-500 mt-2">💡 Suggestion: {error.suggestion}</p>
+                        )}
                     </div>
                 )}
                 {/* Warnings */}
@@ -313,12 +336,13 @@ const VisualSitemap: FC = () => {
                     </div>
                 )}
 
+
                 {/* --- Sitemap Visualization Area --- */}
                 {sitemapData && (
                     <div className="bg-gray-800 rounded-2xl shadow-2xl border border-cyan-500/20 p-4 md:p-8 mt-6">
-                        <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
                             <h2 className="text-2xl font-bold text-teal-400">Site Structure Visualization</h2>
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-4 flex-wrap">
                                 
                                 {/* Download Button */}
                                 <button
@@ -363,16 +387,17 @@ const VisualSitemap: FC = () => {
                                 >
                                     {sitemapData.pages && sitemapData.pages.length > 0 ? (
                                         <div className="flex flex-col items-center gap-12">
+                                            {/* Each top-level page is a separate root branch */}
                                             {sitemapData.pages.map((page: SitemapNode, idx: number) => (
                                                 <div key={`root-${idx}`}>
-                                                    <NodeRenderer node={page} level={0} index={idx} />
+                                                    <NodeRenderer node={page} level={0} /> 
                                                 </div>
                                             ))}
                                         </div>
                                     ) : (
                                         <div className="text-center text-gray-500 p-12">
                                             <p className="text-lg">No sitemap structure found for {url}</p>
-                                            <p className="text-sm mt-2">Try a different URL or check your site's robots.txt.</p>
+                                            <p className="text-sm mt-2">Enter a URL above to start mapping.</p>
                                         </div>
                                     )}
                                 </div>
@@ -384,5 +409,3 @@ const VisualSitemap: FC = () => {
         </div>
     )
 }
-
-export default VisualSitemap
