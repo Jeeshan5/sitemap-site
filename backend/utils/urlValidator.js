@@ -1,73 +1,104 @@
 const axios = require('axios');
 const https = require('https');
+const dns = require('dns').promises;
 
 /**
- * Check if a URL is safe to crawl
+ * Validate and analyze a URL before crawling
+ * Ignores robots.txt — full unrestricted crawl
  */
 async function validateUrl(url) {
     const issues = [];
     const warnings = [];
     let isSafe = true;
+    let finalUrl = url;
+    let statusCode = null;
+    let redirectChain = [];
 
     try {
-        const parsedUrl = new URL(url);
-
-        // 1. Check protocol
-        if (parsedUrl.protocol === 'http:') {
-            warnings.push('Site uses HTTP (not HTTPS) - data is not encrypted');
+        // Normalize missing protocol
+        if (!/^https?:\/\//i.test(url)) {
+            finalUrl = `https://${url}`;
+            warnings.push('Protocol missing — assumed HTTPS');
         }
 
+        const parsedUrl = new URL(finalUrl);
+
+        // ✅ 1. Validate protocol
         if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-            issues.push('Invalid protocol. Only HTTP and HTTPS are supported');
-            isSafe = false;
-            return { isSafe, issues, warnings, canProceed: false };
+            issues.push('Invalid protocol (only HTTP and HTTPS are supported)');
+            return { isSafe: false, issues, warnings, canProceed: false };
         }
 
-        // 2. Check if site is reachable and check SSL
-        try {
-            const agent = new https.Agent({
-                rejectUnauthorized: true // Strict SSL checking
-            });
+        if (parsedUrl.protocol === 'http:') {
+            warnings.push('Site uses HTTP — not encrypted');
+        }
 
-            const response = await axios.head(url, {
+        // ✅ 2. DNS lookup
+        try {
+            await dns.lookup(parsedUrl.hostname);
+        } catch {
+            issues.push('Domain not found (DNS lookup failed)');
+            return { isSafe: false, issues, warnings, canProceed: false };
+        }
+
+        // ✅ 3. Test connectivity with strict SSL
+        const agent = new https.Agent({ rejectUnauthorized: true });
+
+        try {
+            const response = await axios.head(finalUrl, {
                 timeout: 10000,
                 httpsAgent: agent,
                 maxRedirects: 5,
-                validateStatus: (status) => status < 500 // Accept redirects
+                validateStatus: (status) => status < 500,
             });
 
-            // Site is reachable with valid SSL
-            console.log(`✅ ${url} is safe to crawl`);
+            statusCode = response.status;
+            redirectChain = response.request?.res?.responseUrl
+                ? [url, response.request.res.responseUrl]
+                : [];
 
+            if (statusCode >= 400 && statusCode < 500) {
+                warnings.push(`Site returned ${statusCode} — might block crawlers`);
+            } else if (statusCode >= 500) {
+                issues.push(`Server error ${statusCode}`);
+                isSafe = false;
+            }
         } catch (error) {
-            // Check what kind of error
-            if (error.code === 'CERT_HAS_EXPIRED') {
-                issues.push('SSL certificate has expired');
-                isSafe = false;
-            } else if (error.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE') {
-                issues.push('SSL certificate cannot be verified');
-                isSafe = false;
-            } else if (error.code === 'SELF_SIGNED_CERT_IN_CHAIN') {
-                issues.push('Site uses self-signed SSL certificate');
-                isSafe = false;
-            } else if (error.message.includes('SSL') || error.message.includes('TLS')) {
-                issues.push('SSL/TLS connection error - outdated security');
-                isSafe = false;
-            } else if (error.code === 'ECONNREFUSED') {
-                issues.push('Connection refused - site may be down');
-                isSafe = false;
-            } else if (error.code === 'ENOTFOUND') {
-                issues.push('Domain not found - check the URL');
-                isSafe = false;
-            } else if (error.code === 'ETIMEDOUT') {
-                warnings.push('Site is slow to respond');
-            } else {
-                warnings.push(`Connection issue: ${error.message}`);
+            // Handle SSL and network errors
+            switch (error.code) {
+                case 'CERT_HAS_EXPIRED':
+                    issues.push('SSL certificate expired');
+                    isSafe = false;
+                    break;
+                case 'UNABLE_TO_VERIFY_LEAF_SIGNATURE':
+                    issues.push('Unverified SSL certificate');
+                    isSafe = false;
+                    break;
+                case 'SELF_SIGNED_CERT_IN_CHAIN':
+                    issues.push('Self-signed SSL certificate');
+                    isSafe = false;
+                    break;
+                case 'ECONNREFUSED':
+                    issues.push('Connection refused — site may be offline');
+                    isSafe = false;
+                    break;
+                case 'ENOTFOUND':
+                    issues.push('Domain not found');
+                    isSafe = false;
+                    break;
+                case 'ETIMEDOUT':
+                    warnings.push('Connection timed out — site may be slow');
+                    break;
+                default:
+                    if (error.response?.status === 429)
+                        warnings.push('Rate limited (Too Many Requests)');
+                    else if (error.message.includes('SSL') || error.message.includes('TLS'))
+                        issues.push('SSL/TLS handshake error');
+                    else warnings.push(`Connection issue: ${error.message}`);
             }
         }
 
-        // 3. REMOVED: robots.txt check
-        // We no longer check robots.txt, allowing unrestricted crawling
+        // 🚫 4. robots.txt check intentionally removed
 
     } catch (error) {
         issues.push('Invalid URL format');
@@ -75,32 +106,35 @@ async function validateUrl(url) {
     }
 
     return {
+        url: finalUrl,
+        statusCode,
+        redirectChain,
         isSafe,
         issues,
         warnings,
-        canProceed: isSafe && issues.length === 0
+        canProceed: isSafe && issues.length === 0,
     };
 }
 
 /**
- * Sanitize extracted URLs
+ * Sanitize a list of URLs — remove invalid or unsafe ones
  */
 function sanitizeUrls(urls) {
-    return urls.filter(url => {
-        try {
-            const parsed = new URL(url);
-            
-            // Block dangerous protocols
-            if (['javascript:', 'data:', 'file:', 'vbscript:'].includes(parsed.protocol)) {
+    return urls
+        .filter((url) => {
+            try {
+                const parsed = new URL(url);
+                return ['http:', 'https:'].includes(parsed.protocol);
+            } catch {
                 return false;
             }
-            
-            // Only allow http and https
-            return ['http:', 'https:'].includes(parsed.protocol);
-        } catch {
-            return false;
-        }
-    });
+        })
+        .filter(
+            (url) =>
+                !url.startsWith('javascript:') &&
+                !url.startsWith('data:') &&
+                !url.startsWith('file:')
+        );
 }
 
 module.exports = { validateUrl, sanitizeUrls };
