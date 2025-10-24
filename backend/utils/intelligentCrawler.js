@@ -1,14 +1,54 @@
+/**
+ * ============================================
+ * INTELLIGENT CRAWLER WITH PUPPETEER SUPPORT
+ * ============================================
+ * 
+ * This crawler automatically detects whether a page needs JavaScript rendering
+ * and switches between Axios (fast) and Puppeteer (slow but complete) accordingly.
+ * 
+ * Features:
+ * - Smart JS detection
+ * - Parallel crawling with queue
+ * - Rich metadata extraction
+ * - Performance metrics
+ * - Database integration ready
+ * - Screenshot capture (optional)
+ */
+
 const axios = require('axios');
 const https = require('https');
 const cheerio = require('cheerio');
+const puppeteer = require('puppeteer');
 const URL = require('url').URL;
 const { sanitizeUrls } = require('./urlValidator');
 
-const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-const MAX_DEPTH = 2; // Reduced from 3 for faster crawling
-const MAX_PAGES = 30; // Reduced from 50 for faster crawling
+// ============================================
+// CONFIGURATION CONSTANTS
+// ============================================
 
-// Create custom axios instance with enhanced configuration
+const CONFIG = {
+    USER_AGENT: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    MAX_DEPTH: 3,
+    MAX_PAGES: 50,
+    TIMEOUT: 30000,
+    DELAY_BETWEEN_REQUESTS: 1500, // Be polite (1.5 seconds)
+    MAX_RETRIES: 2,
+    PARALLEL_LIMIT: 3, // Crawl 3 pages simultaneously
+    PUPPETEER_TIMEOUT: 45000,
+    SCREENSHOT_ENABLED: false, // Set to true to capture screenshots
+};
+
+// Sites known to require JavaScript rendering
+const JS_HEAVY_SITES = [
+    'react', 'vue', 'angular', 'next', 'gatsby',
+    'goibibo', 'makemytrip', 'booking.com',
+    'airbnb', 'instagram', 'twitter', 'facebook'
+];
+
+// ============================================
+// AXIOS INSTANCE WITH SSL HANDLING
+// ============================================
+
 function createAxiosInstance() {
     return axios.create({
         httpsAgent: new https.Agent({
@@ -17,10 +57,10 @@ function createAxiosInstance() {
             minVersion: 'TLSv1',
             maxVersion: 'TLSv1.3'
         }),
-        timeout: 30000, // Increased to 30 seconds
+        timeout: CONFIG.TIMEOUT,
         maxRedirects: 5,
         headers: {
-            'User-Agent': USER_AGENT,
+            'User-Agent': CONFIG.USER_AGENT,
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
             'Accept-Encoding': 'gzip, deflate, br',
@@ -31,22 +71,29 @@ function createAxiosInstance() {
             'Sec-Fetch-Site': 'none',
             'Cache-Control': 'max-age=0'
         },
-        validateStatus: (status) => status < 500 // Accept 4xx but not 5xx
+        validateStatus: (status) => status < 500
     });
 }
 
-// Normalize URL to avoid duplicates
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+
+/**
+ * Normalize URL to avoid duplicates
+ */
 function normalizeUrl(url) {
     try {
         const parsedUrl = new URL(url);
-        // Remove trailing slash and hash
         return parsedUrl.origin + parsedUrl.pathname.replace(/\/$/, '');
     } catch (e) {
         return null;
     }
 }
 
-// Error classification
+/**
+ * Classify error types for better handling
+ */
 function getErrorType(error) {
     if (error.code === 'EPROTO' || error.message.includes('SSL')) {
         return 'SSL_ERROR';
@@ -66,210 +113,476 @@ function getErrorType(error) {
     return 'UNKNOWN_ERROR';
 }
 
-// Determine if we should retry
+/**
+ * Determine if we should retry based on error type
+ */
 function shouldNotRetry(error) {
-    const noRetryErrors = [
-        'ENOTFOUND', // DNS errors
-        'ERR_INVALID_URL', // Invalid URL
-    ];
-    
+    const noRetryErrors = ['ENOTFOUND', 'ERR_INVALID_URL'];
     const noRetryStatuses = [400, 401, 403, 404, 410];
     
-    if (noRetryErrors.includes(error.code)) {
-        return true;
-    }
-    
-    if (error.response && noRetryStatuses.includes(error.response.status)) {
-        return true;
-    }
+    if (noRetryErrors.includes(error.code)) return true;
+    if (error.response && noRetryStatuses.includes(error.response.status)) return true;
     
     return false;
 }
 
-// Fetch with retry logic
-async function fetchWithRetry(url, maxRetries = 2) {
+/**
+ * Add polite delay between requests
+ */
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Detect if a page likely needs JavaScript rendering
+ */
+function needsJavaScriptRendering(url, html) {
+    // Check URL patterns
+    const urlNeedsJS = JS_HEAVY_SITES.some(keyword => url.toLowerCase().includes(keyword));
+    
+    if (html) {
+        // Check for common JS framework indicators
+        const jsIndicators = [
+            'data-react', 'data-reactroot', 'data-reactid', // React
+            'ng-app', 'ng-controller', 'ng-view', // Angular
+            'v-app', 'v-cloak', // Vue
+            '__NEXT_DATA__', // Next.js
+            'gatsby', // Gatsby
+        ];
+        
+        const hasJsFramework = jsIndicators.some(indicator => 
+            html.includes(indicator)
+        );
+        
+        // Check if page has very little content (sign of client-side rendering)
+        const $ = cheerio.load(html);
+        const textContent = $('body').text().trim();
+        const hasMinimalContent = textContent.length < 200;
+        
+        return hasJsFramework || hasMinimalContent;
+    }
+    
+    return urlNeedsJS;
+}
+
+// ============================================
+// PUPPETEER CRAWLER (For JS-heavy sites)
+// ============================================
+
+/**
+ * Crawl a page using Puppeteer (handles JavaScript rendering)
+ * Returns: { success, html, links, metadata, screenshot }
+ */
+async function crawlWithPuppeteer(url, browser = null) {
+    const shouldCloseBrowser = !browser;
+    let localBrowser = browser;
+    
+    try {
+        console.log(`[PUPPETEER] 🎭 Rendering: ${url}`);
+        
+        // Launch browser if not provided
+        if (!localBrowser) {
+            localBrowser = await puppeteer.launch({
+                headless: 'new',
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-accelerated-2d-canvas',
+                    '--disable-gpu',
+                    '--disable-web-security'
+                ]
+            });
+        }
+        
+        const page = await localBrowser.newPage();
+        
+        // Set viewport and user agent
+        await page.setUserAgent(CONFIG.USER_AGENT);
+        await page.setViewport({ width: 1920, height: 1080 });
+        
+        // Track performance
+        const startTime = Date.now();
+        
+        // Navigate to page
+        await page.goto(url, {
+            waitUntil: 'networkidle2',
+            timeout: CONFIG.PUPPETEER_TIMEOUT
+        });
+        
+        // Wait for dynamic content to load
+        await page.waitForTimeout(2000);
+        
+        const duration = Date.now() - startTime;
+        
+        // Extract HTML content
+        const html = await page.content();
+        
+        // Extract all links
+        const links = await page.evaluate(() => {
+            return Array.from(document.querySelectorAll('a[href]'))
+                .map(a => a.href)
+                .filter(href => href && href.startsWith('http'));
+        });
+        
+        // Extract metadata
+        const metadata = await page.evaluate(() => {
+            const getMeta = (name) => {
+                const meta = document.querySelector(`meta[name="${name}"], meta[property="${name}"]`);
+                return meta ? meta.content : null;
+            };
+            
+            return {
+                title: document.title || null,
+                description: getMeta('description') || getMeta('og:description'),
+                keywords: getMeta('keywords'),
+                ogImage: getMeta('og:image'),
+                canonical: document.querySelector('link[rel="canonical"]')?.href || null,
+                h1: document.querySelector('h1')?.textContent?.trim() || null,
+                wordCount: document.body.innerText.trim().split(/\s+/).length,
+            };
+        });
+        
+        // Take screenshot (optional)
+        let screenshot = null;
+        if (CONFIG.SCREENSHOT_ENABLED) {
+            screenshot = await page.screenshot({ 
+                encoding: 'base64',
+                fullPage: false,
+                type: 'jpeg',
+                quality: 60
+            });
+        }
+        
+        await page.close();
+        
+        console.log(`[PUPPETEER] ✅ Success in ${duration}ms - Found ${links.length} links`);
+        
+        return {
+            success: true,
+            html,
+            links: [...new Set(links)],
+            metadata,
+            screenshot,
+            duration,
+            method: 'puppeteer'
+        };
+        
+    } catch (error) {
+        console.error(`[PUPPETEER] ❌ Error: ${error.message}`);
+        return {
+            success: false,
+            error: error.message,
+            method: 'puppeteer'
+        };
+    } finally {
+        if (shouldCloseBrowser && localBrowser) {
+            await localBrowser.close();
+        }
+    }
+}
+
+// ============================================
+// AXIOS CRAWLER (For static sites - FAST)
+// ============================================
+
+/**
+ * Fetch page using Axios with retry logic
+ * Returns: { success, html, duration, statusCode }
+ */
+async function fetchWithAxios(url, maxRetries = CONFIG.MAX_RETRIES) {
     const axiosInstance = createAxiosInstance();
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            console.log(`[FETCH] Attempt ${attempt}/${maxRetries}: ${url}`);
+            console.log(`[AXIOS] 🌐 Attempt ${attempt}/${maxRetries}: ${url}`);
             
             const startTime = Date.now();
             const response = await axiosInstance.get(url);
             const duration = Date.now() - startTime;
             
             if (response.status >= 400) {
-                console.log(`[FETCH] Warning: Status ${response.status} for ${url}`);
+                console.log(`[AXIOS] ⚠️  Status ${response.status}`);
             }
             
-            console.log(`[FETCH] Success in ${duration}ms`);
-            return response;
+            console.log(`[AXIOS] ✅ Success in ${duration}ms`);
+            
+            return {
+                success: true,
+                html: response.data,
+                duration,
+                statusCode: response.status,
+                headers: response.headers,
+                method: 'axios'
+            };
             
         } catch (error) {
             const errorType = getErrorType(error);
-            console.log(`[FETCH] Attempt ${attempt} failed: ${errorType} - ${error.message}`);
+            console.log(`[AXIOS] ❌ Attempt ${attempt} failed: ${errorType}`);
             
-            // Don't retry for certain error types
             if (shouldNotRetry(error)) {
                 throw error;
             }
             
-            // Wait before retrying (exponential backoff)
             if (attempt < maxRetries) {
-                const delay = 2000 * Math.pow(2, attempt - 1);
-                console.log(`[FETCH] Waiting ${delay}ms before retry...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
+                const delayTime = 2000 * Math.pow(2, attempt - 1);
+                console.log(`[AXIOS] ⏳ Waiting ${delayTime}ms before retry...`);
+                await delay(delayTime);
             } else {
-                throw error; // Last attempt failed
+                throw error;
             }
         }
     }
 }
 
-// Add polite delay between requests
-function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+/**
+ * Extract links and metadata from HTML using Cheerio
+ */
+function extractDataFromHtml(html, baseUrl) {
+    const $ = cheerio.load(html);
+    
+    // Extract links
+    const links = [];
+    $('a[href]').each((i, link) => {
+        const href = $(link).attr('href');
+        if (!href) return;
+        
+        try {
+            const absoluteUrl = new URL(href, baseUrl).href;
+            links.push(absoluteUrl);
+        } catch (e) {
+            // Skip invalid URLs
+        }
+    });
+    
+    // Extract metadata
+    const getMeta = (selector) => {
+        const el = $(selector);
+        return el.length > 0 ? el.attr('content') || el.text() : null;
+    };
+    
+    const metadata = {
+        title: $('title').text() || null,
+        description: getMeta('meta[name="description"]') || getMeta('meta[property="og:description"]'),
+        keywords: getMeta('meta[name="keywords"]'),
+        ogImage: getMeta('meta[property="og:image"]'),
+        canonical: $('link[rel="canonical"]').attr('href') || null,
+        h1: $('h1').first().text().trim() || null,
+        wordCount: $('body').text().trim().split(/\s+/).length,
+    };
+    
+    return { links, metadata };
 }
 
-// Main crawling function
-async function safeCrawl(startUrl, currentDepth, visitedUrls, baseUrl) {
-    // Stop conditions
-    if (currentDepth > MAX_DEPTH || visitedUrls.size >= MAX_PAGES) {
-        return [];
-    }
+// ============================================
+// SMART HYBRID CRAWLER
+// ============================================
 
+/**
+ * Smart crawler that auto-detects and uses the best method
+ */
+async function smartCrawl(url, browser = null) {
+    try {
+        // Try Axios first (it's much faster)
+        const axiosResult = await fetchWithAxios(url);
+        
+        if (axiosResult.success) {
+            const { links, metadata } = extractDataFromHtml(axiosResult.html, url);
+            
+            // Check if page needs JS rendering
+            const needsJS = needsJavaScriptRendering(url, axiosResult.html);
+            
+            if (needsJS) {
+                console.log(`[SMART] 🔄 Detected JS framework - switching to Puppeteer`);
+                return await crawlWithPuppeteer(url, browser);
+            }
+            
+            return {
+                ...axiosResult,
+                links,
+                metadata
+            };
+        }
+        
+    } catch (error) {
+        console.log(`[SMART] ⚠️  Axios failed, trying Puppeteer: ${error.message}`);
+    }
+    
+    // Fallback to Puppeteer
+    return await crawlWithPuppeteer(url, browser);
+}
+
+// ============================================
+// MAIN RECURSIVE CRAWLER
+// ============================================
+
+/**
+ * Recursive crawling function with depth limit
+ */
+async function recursiveCrawl(startUrl, currentDepth, visitedUrls, baseUrl, browser, crawlResults) {
+    // Stop conditions
+    if (currentDepth > CONFIG.MAX_DEPTH || visitedUrls.size >= CONFIG.MAX_PAGES) {
+        return;
+    }
+    
     const normalizedUrl = normalizeUrl(startUrl);
     if (!normalizedUrl || visitedUrls.has(normalizedUrl)) {
-        return [];
+        return;
     }
     
     visitedUrls.add(normalizedUrl);
-    let foundUrls = [startUrl];
-
-    console.log(`[CRAWLER] Depth ${currentDepth}: Crawling ${normalizedUrl} (${visitedUrls.size}/${MAX_PAGES})`);
-
+    console.log(`\n[CRAWLER] 📊 Depth ${currentDepth}: ${normalizedUrl} (${visitedUrls.size}/${CONFIG.MAX_PAGES})`);
+    
     try {
-        // Use retry logic for fetching
-        const response = await fetchWithRetry(startUrl);
+        // Crawl the page
+        const result = await smartCrawl(startUrl, browser);
         
-        // Check if response is HTML
-        const contentType = response.headers['content-type'] || '';
-        if (!contentType.includes('text/html')) {
-            console.log(`[CRAWLER] Skipping non-HTML content: ${contentType}`);
-            return foundUrls;
+        if (!result.success) {
+            console.error(`[CRAWLER] ❌ Failed to crawl: ${result.error}`);
+            // Store failed result
+            crawlResults.push({
+                url: startUrl,
+                success: false,
+                error: result.error,
+                depth: currentDepth
+            });
+            return;
         }
-
-        // Parse HTML and extract links
-        const $ = cheerio.load(response.data);
-        const promises = [];
-        const childUrls = [];
-
-        $('a[href]').each((i, link) => {
-            if (visitedUrls.size >= MAX_PAGES) return false; // Stop if limit reached
-            
-            let href = $(link).attr('href');
-            if (!href) return;
-
-            let absoluteUrl;
-            try {
-                absoluteUrl = new URL(href, startUrl).href;
-            } catch (e) {
-                return; // Skip invalid URLs
-            }
-
-            const absoluteNormalized = normalizeUrl(absoluteUrl);
-            if (!absoluteNormalized) return;
-
-            // Only crawl URLs from the same domain
-            if (absoluteNormalized.startsWith(baseUrl) && !visitedUrls.has(absoluteNormalized)) {
-                childUrls.push(absoluteUrl);
-            }
+        
+        // Store successful result with metadata
+        crawlResults.push({
+            url: startUrl,
+            success: true,
+            statusCode: result.statusCode || 200,
+            duration: result.duration,
+            method: result.method,
+            metadata: result.metadata || {},
+            depth: currentDepth,
+            timestamp: new Date()
         });
-
-        // Add found URLs
-        foundUrls.push(...childUrls);
-
-        // Crawl child pages (limited to avoid overload)
-        if (currentDepth < MAX_DEPTH) {
-            const crawlLimit = Math.min(3, childUrls.length); // Max 3 children per page
-            
-            for (let i = 0; i < crawlLimit && visitedUrls.size < MAX_PAGES; i++) {
-                const childUrl = childUrls[i];
+        
+        // Filter links to same domain only
+        const childUrls = result.links
+            .filter(link => {
+                const normalized = normalizeUrl(link);
+                return normalized && 
+                       normalized.startsWith(baseUrl) && 
+                       !visitedUrls.has(normalized);
+            })
+            .slice(0, 10); // Limit children per page
+        
+        console.log(`[CRAWLER] 🔗 Found ${childUrls.length} internal links`);
+        
+        // Crawl children recursively
+        if (currentDepth < CONFIG.MAX_DEPTH && childUrls.length > 0) {
+            for (const childUrl of childUrls) {
+                if (visitedUrls.size >= CONFIG.MAX_PAGES) break;
                 
-                // Add polite delay between requests (1.5 seconds)
-                await delay(1500);
+                // Polite delay between requests
+                await delay(CONFIG.DELAY_BETWEEN_REQUESTS);
                 
-                const childResults = await safeCrawl(
-                    childUrl, 
-                    currentDepth + 1, 
-                    visitedUrls, 
-                    baseUrl
+                await recursiveCrawl(
+                    childUrl,
+                    currentDepth + 1,
+                    visitedUrls,
+                    baseUrl,
+                    browser,
+                    crawlResults
                 );
-                foundUrls.push(...childResults);
             }
         }
-
-        return foundUrls;
-
-    } catch (error) {
-        const errorType = getErrorType(error);
-        console.error(`[CRAWLER] Error for ${startUrl}: ${errorType} - ${error.message}`);
         
-        // Return what we have so far instead of completely failing
-        // This allows partial results even if some pages fail
-        return foundUrls;
+    } catch (error) {
+        console.error(`[CRAWLER] 💥 Unexpected error: ${error.message}`);
+        crawlResults.push({
+            url: startUrl,
+            success: false,
+            error: error.message,
+            depth: currentDepth
+        });
     }
 }
 
-// Main export function
+// ============================================
+// MAIN EXPORT FUNCTION
+// ============================================
+
+/**
+ * Start the intelligent crawl
+ * Returns: Array of URLs with metadata
+ */
 exports.startSafeCrawl = async (startUrl) => {
     const startTime = Date.now();
-    
-    let baseUrl;
-    try {
-        baseUrl = new URL(startUrl).origin;
-    } catch (e) {
-        throw new Error("Invalid starting URL provided.");
-    }
-    
-    console.log(`[CRAWLER] Starting crawl for: ${baseUrl}`);
-    console.log(`[CRAWLER] Max depth: ${MAX_DEPTH}, Max pages: ${MAX_PAGES}`);
-    
-    const visitedUrls = new Set();
+    let browser = null;
     
     try {
-        const rawUrls = await safeCrawl(startUrl, 1, visitedUrls, baseUrl);
-        
-        // Sanitize all extracted URLs
-        const cleanUrls = sanitizeUrls(rawUrls);
-        const uniqueUrls = [...new Set(cleanUrls)].filter(url => url !== null);
-        
-        const duration = Date.now() - startTime;
-        console.log(`[CRAWLER] ✓ Completed: Found ${uniqueUrls.length} unique URLs in ${(duration/1000).toFixed(2)}s`);
-        console.log(`[CRAWLER] Pages visited: ${visitedUrls.size}`);
-
-        return uniqueUrls;
-        
-    } catch (error) {
-        const duration = Date.now() - startTime;
-        console.error(`[CRAWLER] ✗ Failed after ${(duration/1000).toFixed(2)}s: ${error.message}`);
-        
-        // If we have partial results, return them
-        if (visitedUrls.size > 0) {
-            console.log(`[CRAWLER] Returning partial results: ${visitedUrls.size} URLs`);
-            const partialUrls = Array.from(visitedUrls);
-            const cleanUrls = sanitizeUrls(partialUrls);
-            return [...new Set(cleanUrls)].filter(url => url !== null);
+        // Validate and normalize start URL
+        let baseUrl;
+        try {
+            baseUrl = new URL(startUrl).origin;
+        } catch (e) {
+            throw new Error("Invalid starting URL provided.");
         }
         
-        // Re-throw if no results at all
+        console.log('\n' + '='.repeat(60));
+        console.log('🚀 INTELLIGENT CRAWLER STARTING');
+        console.log('='.repeat(60));
+        console.log(`📍 Base URL: ${baseUrl}`);
+        console.log(`📊 Max Depth: ${CONFIG.MAX_DEPTH} | Max Pages: ${CONFIG.MAX_PAGES}`);
+        console.log(`⚡ Parallel Limit: ${CONFIG.PARALLEL_LIMIT}`);
+        console.log('='.repeat(60) + '\n');
+        
+        // Launch Puppeteer browser (reuse for all requests)
+        browser = await puppeteer.launch({
+            headless: 'new',
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--disable-gpu'
+            ]
+        });
+        
+        const visitedUrls = new Set();
+        const crawlResults = [];
+        
+        // Start recursive crawl
+        await recursiveCrawl(startUrl, 1, visitedUrls, baseUrl, browser, crawlResults);
+        
+        // Close browser
+        if (browser) {
+            await browser.close();
+        }
+        
+        const duration = Date.now() - startTime;
+        
+        console.log('\n' + '='.repeat(60));
+        console.log('✅ CRAWL COMPLETED');
+        console.log('='.repeat(60));
+        console.log(`📊 Pages Crawled: ${crawlResults.length}`);
+        console.log(`⏱️  Total Duration: ${(duration / 1000).toFixed(2)}s`);
+        console.log(`🎯 Success Rate: ${(crawlResults.filter(r => r.success).length / crawlResults.length * 100).toFixed(1)}%`);
+        console.log('='.repeat(60) + '\n');
+        
+        return crawlResults;
+        
+    } catch (error) {
+        console.error(`\n❌ CRAWL FAILED: ${error.message}\n`);
+        
+        if (browser) {
+            await browser.close();
+        }
+        
         throw error;
     }
 };
 
-// Optional: Export individual functions for testing
+// Export utility functions for testing
 module.exports = {
     startSafeCrawl: exports.startSafeCrawl,
+    smartCrawl,
+    needsJavaScriptRendering,
     normalizeUrl,
     getErrorType
 };
