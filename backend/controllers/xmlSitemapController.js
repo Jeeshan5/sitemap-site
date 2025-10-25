@@ -44,14 +44,21 @@ exports.generateXmlSitemap = async (req, res, next) => {
 
         // 5. Proceed with safe crawling
         console.log(`Starting safe crawl for: ${validUrl}`);
-        const urlsFound = await startSafeCrawl(validUrl);
+        const crawlResults = await startSafeCrawl(validUrl);
         
-        if (urlsFound.length === 0) {
+        if (!crawlResults || crawlResults.length === 0) {
             return res.status(404).json({ 
                 error: 'No URLs found.',
                 suggestion: 'The site might have no internal links or uses JavaScript for navigation.'
             });
         }
+
+        // ✅ FIX: Extract URLs from crawl results (new crawler returns objects)
+        const urlsFound = crawlResults
+            .filter(result => result.success)
+            .map(result => result.url);
+
+        console.log(`Found ${urlsFound.length} URLs for XML sitemap`);
 
         // 6. Build XML
         const xmlString = buildXmlSitemap(urlsFound);
@@ -61,6 +68,15 @@ exports.generateXmlSitemap = async (req, res, next) => {
             message: 'XML Sitemap generated successfully.',
             xml: xmlString,
             urlCount: urlsFound.length,
+            // ✅ BONUS: Include summary statistics
+            summary: {
+                totalPages: crawlResults.length,
+                successfulPages: crawlResults.filter(r => r.success).length,
+                failedPages: crawlResults.filter(r => !r.success).length,
+                averageLoadTime: Math.round(
+                    crawlResults.reduce((sum, r) => sum + (r.duration || 0), 0) / crawlResults.length
+                )
+            },
             warnings: validation.warnings.length > 0 ? validation.warnings : undefined
         });
 

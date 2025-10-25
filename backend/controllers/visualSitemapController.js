@@ -43,14 +43,21 @@ exports.processVisualSitemap = async (req, res, next) => {
 
         // 5. Proceed with safe crawling
         console.log(`Starting safe crawl for: ${validUrl}`);
-        const urlsFound = await startSafeCrawl(validUrl);
+        const crawlResults = await startSafeCrawl(validUrl);
 
-        if (urlsFound.length === 0) {
+        if (!crawlResults || crawlResults.length === 0) {
             return res.status(404).json({ 
                 error: 'No URLs found.',
                 suggestion: 'The site might have no internal links or uses JavaScript for navigation.'
             });
         }
+
+        // ✅ FIX: Extract URLs from crawl results (new crawler returns objects)
+        const urlsFound = crawlResults
+            .filter(result => result.success)
+            .map(result => result.url);
+
+        console.log(`Found ${urlsFound.length} URLs for visual sitemap`);
 
         // 6. Build hierarchical structure
         const pages = buildHierarchy(urlsFound, validUrl);
@@ -60,6 +67,14 @@ exports.processVisualSitemap = async (req, res, next) => {
             message: 'Visual sitemap data generated.',
             pages: pages,
             urlCount: urlsFound.length,
+            // ✅ BONUS: Include metadata from crawl results
+            metadata: crawlResults.map(r => ({
+                url: r.url,
+                title: r.metadata?.title || 'Untitled',
+                depth: r.depth || 0,
+                loadTime: r.duration || 0,
+                statusCode: r.statusCode || 200
+            })),
             warnings: validation.warnings.length > 0 ? validation.warnings : undefined
         });
 
@@ -194,6 +209,7 @@ function buildHierarchy(urls, baseUrl) {
     return rootNodes.map(node => cleanNode(node));
 }
 
+// At the END of the file:
 module.exports = {
     processVisualSitemap: exports.processVisualSitemap,
     saveVisualSitemap: exports.saveVisualSitemap

@@ -464,6 +464,7 @@ exports.getPerformanceReport = async (req, res, next) => {
 // EXPORT MODULE
 // ============================================
 
+// At the END of the file (should already have this):
 module.exports = {
     generateHtmlSitemap: exports.generateHtmlSitemap,
     getHtmlSitemap: exports.getHtmlSitemap,
