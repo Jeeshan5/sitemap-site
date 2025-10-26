@@ -2,9 +2,8 @@
 
 import { useState, FC } from 'react'
 import { Download, Loader2, AlertTriangle, XCircle, Send, ArrowLeft } from 'lucide-react'
-import { useRouter } from 'next/navigation' // Import router for back button
+import { useRouter } from 'next/navigation'
 
-// Environment variable for API URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
 
 interface ValidationIssue {
@@ -16,9 +15,6 @@ interface ValidationIssue {
     suggestion?: string
 }
 
-/**
- * Modern, dark-themed component for generating XML sitemaps.
- */
 const XmlSitemap: FC = () => {
     const router = useRouter()
     const [url, setUrl] = useState('')
@@ -39,7 +35,6 @@ const XmlSitemap: FC = () => {
         setWarnings([])
 
         try {
-            // NOTE: Using a mock response structure for frontend preview.
             const response = await fetch(`${API_URL}/generate-xml`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -53,36 +48,13 @@ const XmlSitemap: FC = () => {
                 return
             }
 
-            // Mock XML response for demonstration
-            const mockXml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-    <url>
-        <loc>${url}/</loc>
-        <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-        <changefreq>daily</changefreq>
-        <priority>1.0</priority>
-    </url>
-    <url>
-        <loc>${url}/products</loc>
-        <lastmod>2024-10-22</lastmod>
-        <changefreq>weekly</changefreq>
-        <priority>0.8</priority>
-    </url>
-    <url>
-        <loc>${url}/about</loc>
-        <lastmod>2024-01-15</lastmod>
-        <changefreq>monthly</changefreq>
-        <priority>0.5</priority>
-    </url>
-</urlset>`.trim();
-
-            setResult(data.xml || mockXml)
+            setResult(data.xml)
             if (data.warnings) {
                 setWarnings(data.warnings)
             }
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : String(err)
-            setError({ error: message || 'Error generating XML sitemap. Check API connection.' })
+            setError({ error: message || 'Error generating XML sitemap' })
         } finally {
             setLoading(false)
         }
@@ -101,49 +73,59 @@ const XmlSitemap: FC = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-8">
+        <div className="min-h-screen bg-gradient-to-br from-blue-950 via-gray-900 to-blue-950 text-white p-4 sm:p-8">
             <div className="max-w-4xl mx-auto">
-                 {/* Back Button */}
                 <button
                     onClick={() => router.push('/')}
-                    className="flex items-center text-teal-400 hover:text-cyan-400 mb-6 font-semibold transition duration-200"
+                    className="flex items-center text-blue-400 hover:text-blue-300 mb-6 font-semibold transition duration-200 group"
                 >
-                    <ArrowLeft className="w-4 h-4 mr-2" /> Back to Tools Dashboard
+                    <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" /> 
+                    Back to Dashboard
                 </button>
 
-                <div className="bg-gray-800 rounded-2xl shadow-2xl border border-teal-500/20 p-8 md:p-10">
-                    <h1 className="text-4xl font-extrabold text-teal-400 mb-2">XML Sitemap Generator</h1>
-                    <p className="text-gray-400 mb-8">
-                        Crawl your site and generate a valid `sitemap.xml` file for search engines.
+                <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl shadow-2xl border border-blue-500/30 p-8 md:p-10">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
+                            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                            </svg>
+                        </div>
+                        <h1 className="text-4xl font-extrabold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                            XML Sitemap Generator
+                        </h1>
+                    </div>
+                    <p className="text-gray-400 mb-8 ml-15">
+                        Generate valid sitemap.xml files for search engines - boost your SEO!
                     </p>
 
                     <div className="space-y-6">
-                        {/* Input Form */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                                Website URL (e.g., https://example.com)
+                            <label className="block text-sm font-semibold text-gray-300 mb-3">
+                                Website URL
                             </label>
                             <input
                                 type="url"
                                 value={url}
                                 onChange={(e) => setUrl(e.target.value)}
-                                placeholder="https://yourwebsite.com"
-                                className="w-full p-4 border border-gray-600 rounded-xl bg-gray-700 text-white placeholder-gray-500 
-                                           focus:ring-2 focus:ring-teal-400 focus:border-teal-400 transition-colors"
+                                placeholder="https://example.com"
+                                className="w-full p-4 border-2 border-gray-700 rounded-xl bg-gray-900/50 text-white placeholder-gray-500 
+                                           focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all backdrop-blur-sm"
+                                onKeyPress={(e) => e.key === 'Enter' && generateXml()}
                             />
                         </div>
 
-                        {/* Generate Button */}
                         <button
                             onClick={generateXml}
                             disabled={loading}
-                            className="w-full bg-teal-600 text-white px-6 py-4 rounded-xl hover:bg-teal-700 transition 
-                                       disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-extrabold shadow-lg shadow-teal-500/20"
+                            className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-6 py-4 rounded-xl 
+                                       hover:from-blue-700 hover:to-cyan-700 transition-all
+                                       disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 
+                                       font-bold shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:scale-[1.02]"
                         >
                             {loading ? (
                                 <>
-                                    <Loader2 className="animate-spin" size={20} />
-                                    Validating and Crawling...
+                                    <Loader2 className="animate-spin" size={22} />
+                                    Crawling & Generating...
                                 </>
                             ) : (
                                 <>
@@ -154,16 +136,13 @@ const XmlSitemap: FC = () => {
                         </button>
                     </div>
 
-                    {/* --- Feedback & Results Area --- */}
-                    
-                    {/* Security Errors */}
                     {error && error.issues && error.issues.length > 0 && (
-                        <div className="mt-8 p-6 bg-red-900/50 border-l-4 border-red-500 rounded-xl shadow-inner">
+                        <div className="mt-8 p-6 bg-red-900/30 border-l-4 border-red-500 rounded-xl backdrop-blur-sm">
                             <div className="flex items-start gap-3">
                                 <XCircle className="text-red-400 flex-shrink-0 mt-0.5" size={24} />
                                 <div className="flex-1">
                                     <h3 className="font-semibold text-red-300 mb-2">Security Issues Detected</h3>
-                                    <p className="text-red-400 mb-2">{error.message || 'The target URL appears unsafe or blocked.'}</p>
+                                    <p className="text-red-400 mb-2 text-sm">{error.message}</p>
                                     <ul className="list-disc list-inside space-y-1 text-red-400 text-sm">
                                         {error.issues.map((issue, idx) => (<li key={idx}>{issue}</li>))}
                                     </ul>
@@ -172,23 +151,21 @@ const XmlSitemap: FC = () => {
                         </div>
                     )}
 
-                    {/* General Errors */}
                     {error && !error.issues && (
-                        <div className="mt-8 p-6 bg-red-900/50 border border-red-700 rounded-xl">
-                            <p className="text-red-400 font-medium">{error.error || error.message || 'An unknown error occurred.'}</p>
+                        <div className="mt-8 p-6 bg-red-900/30 border border-red-700/50 rounded-xl backdrop-blur-sm">
+                            <p className="text-red-400 font-medium">{error.error || error.message}</p>
                             {error.suggestion && (
-                                <p className="text-sm text-red-500 mt-2">💡 Suggestion: {error.suggestion}</p>
+                                <p className="text-sm text-red-500 mt-2">💡 {error.suggestion}</p>
                             )}
                         </div>
                     )}
 
-                    {/* Warnings */}
                     {warnings.length > 0 && (
-                        <div className="mt-8 p-6 bg-yellow-900/50 border-l-4 border-yellow-500 rounded-xl shadow-inner">
+                        <div className="mt-8 p-6 bg-yellow-900/30 border-l-4 border-yellow-500 rounded-xl backdrop-blur-sm">
                             <div className="flex items-start gap-3">
                                 <AlertTriangle className="text-yellow-400 flex-shrink-0 mt-0.5" size={24} />
                                 <div className="flex-1">
-                                    <h3 className="font-semibold text-yellow-300 mb-2">Crawl Warnings</h3>
+                                    <h3 className="font-semibold text-yellow-300 mb-2">Warnings</h3>
                                     <ul className="list-disc list-inside space-y-1 text-yellow-400 text-sm">
                                         {warnings.map((warning, idx) => (<li key={idx}>{warning}</li>))}
                                     </ul>
@@ -197,21 +174,21 @@ const XmlSitemap: FC = () => {
                         </div>
                     )}
 
-                    {/* Results Output */}
                     {result && (
                         <div className="mt-8 space-y-4">
-                            <div className="flex items-center justify-between">
-                                <h2 className="text-xl font-bold text-teal-400">Generated XML Sitemap</h2>
+                            <div className="flex items-center justify-between flex-wrap gap-3">
+                                <h2 className="text-xl font-bold text-blue-400">Generated XML Sitemap</h2>
                                 <button
                                     onClick={downloadXml}
-                                    className="flex items-center gap-2 bg-cyan-600 text-white px-4 py-2 rounded-xl hover:bg-cyan-700 transition font-medium shadow-lg shadow-cyan-500/30"
+                                    className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white px-4 py-2 rounded-xl 
+                                               hover:from-emerald-700 hover:to-green-700 transition-all font-medium shadow-lg shadow-emerald-500/30"
                                 >
                                     <Download size={18} />
-                                    Download .xml
+                                    Download XML
                                 </button>
                             </div>
-                            <div className="bg-gray-900 border border-gray-700 p-6 rounded-xl overflow-x-auto max-h-96 shadow-lg">
-                                <pre className="text-teal-400 text-sm whitespace-pre-wrap">
+                            <div className="bg-gray-950 border-2 border-blue-500/20 p-6 rounded-xl overflow-x-auto max-h-96 shadow-inner">
+                                <pre className="text-cyan-400 text-sm whitespace-pre-wrap font-mono">
                                     <code>{result}</code>
                                 </pre>
                             </div>
