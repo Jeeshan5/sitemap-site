@@ -191,7 +191,7 @@ const HomePage: FC = () => {
             </div>
             <h3 className="text-xl font-bold text-gray-900 dark:text-white">SEO Optimized</h3>
             <p className="text-gray-600 dark:text-gray-400 text-sm">
-              100% compliant with Google's sitemap standards and best practices
+              100% compliant with Google&apos;s sitemap standards and best practices
             </p>
           </div>
         </div>

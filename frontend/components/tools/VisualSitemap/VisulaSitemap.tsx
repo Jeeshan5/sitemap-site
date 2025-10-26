@@ -11,6 +11,12 @@ import ReactFlow, {
   MarkerType,
   BackgroundVariant,
   ReactFlowProvider,
+  Node,
+  Edge,
+  Connection,
+  NodeChange,
+  EdgeChange,
+  ReactFlowInstance,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { Loader2, AlertTriangle, XCircle, Download, Maximize2 } from 'lucide-react'
@@ -54,6 +60,15 @@ interface SitemapNode {
   children?: SitemapNode[]
 }
 
+interface FlowCanvasProps {
+  nodes: Node[]
+  edges: Edge[]
+  onNodesChange: (changes: NodeChange[]) => void
+  onEdgesChange: (changes: EdgeChange[]) => void
+  onConnect: (connection: Connection) => void
+  onFitView: () => void
+}
+
 // Custom node styles with gradient backgrounds
 const getNodeStyle = (level: number) => {
   const styles = [
@@ -94,7 +109,7 @@ const getNodeStyle = (level: number) => {
   }
 }
 
-function FlowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect, onFitView }: any) {
+function FlowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect, onFitView }: FlowCanvasProps) {
   return (
     <div className="relative w-full h-full">
       <ReactFlow
@@ -103,7 +118,7 @@ function FlowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect, onF
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onInit={(reactFlowInstance) => {
+        onInit={(reactFlowInstance: ReactFlowInstance) => {
           setTimeout(() => reactFlowInstance.fitView({ padding: 0.2 }), 100)
         }}
         fitView
@@ -120,7 +135,7 @@ function FlowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect, onF
           className="!shadow-lg !border-2 !border-gray-200"
         />
         <MiniMap 
-          nodeColor={(node) => {
+          nodeColor={(node: Node) => {
             const bg = node.style?.background as string
             return bg || '#94a3b8'
           }}
@@ -158,10 +173,10 @@ function VisualSitemapContent() {
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [showCanvas, setShowCanvas] = useState(false)
-  const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null)
 
   const onConnect = useCallback(
-    (params: any) => setEdges((eds) => addEdge(params, eds)),
+    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
     [setEdges]
   )
 
@@ -172,8 +187,8 @@ function VisualSitemapContent() {
   }
 
   const convertToFlowData = (data: { pages?: SitemapNode[] }) => {
-    const flowNodes: any[] = []
-    const flowEdges: any[] = []
+    const flowNodes: Node[] = []
+    const flowEdges: Edge[] = []
     let nodeId = 0
     
     const processNode = (
