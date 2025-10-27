@@ -11,21 +11,16 @@
       "static/chunks/main-app.js",
       "static/chunks/app/page.js"
     ],
-    "/visual-builder/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/css/app/visual-builder/page.css",
-      "static/chunks/app/visual-builder/page.js"
-    ],
     "/xml-generator/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/xml-generator/page.js"
     ],
-    "/html-generator/page": [
+    "/visual-builder/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/html-generator/page.js"
+      "static/css/app/visual-builder/page.css",
+      "static/chunks/app/visual-builder/page.js"
     ]
   }
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import ReactFlow, {
   MiniMap,
   Controls,
@@ -17,6 +17,7 @@ import ReactFlow, {
   NodeChange,
   EdgeChange,
   ReactFlowInstance,
+  useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { Loader2, AlertTriangle, XCircle, Download, Maximize2 } from 'lucide-react'
@@ -45,6 +46,7 @@ const customControlStyles = `
 // Environment variable for API URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
 
+// TypeScript Interfaces
 interface ValidationIssue {
   error?: string
   issues?: string[]
@@ -66,11 +68,10 @@ interface FlowCanvasProps {
   onNodesChange: (changes: NodeChange[]) => void
   onEdgesChange: (changes: EdgeChange[]) => void
   onConnect: (connection: Connection) => void
-  onFitView: () => void
 }
 
-// Custom node styles with gradient backgrounds
-const getNodeStyle = (level: number) => {
+// Custom node styles with gradient backgrounds - MOVED OUTSIDE COMPONENT
+const getNodeStyle = (level: number): React.CSSProperties => {
   const styles = [
     { 
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -109,7 +110,19 @@ const getNodeStyle = (level: number) => {
   }
 }
 
-function FlowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect, onFitView }: FlowCanvasProps) {
+// FlowCanvas Component - Uses useReactFlow hook for fit view
+function FlowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect }: FlowCanvasProps) {
+  const { fitView } = useReactFlow()
+
+  const handleFitViewClick = useCallback(() => {
+    fitView({ duration: 800, padding: 0.2 })
+  }, [fitView])
+
+  // Initial fit view after nodes are loaded
+  const handleInit = useCallback((reactFlowInstance: ReactFlowInstance) => {
+    setTimeout(() => reactFlowInstance.fitView({ padding: 0.2 }), 100)
+  }, [])
+
   return (
     <div className="relative w-full h-full">
       <ReactFlow
@@ -118,9 +131,7 @@ function FlowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect, onF
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onInit={(reactFlowInstance: ReactFlowInstance) => {
-          setTimeout(() => reactFlowInstance.fitView({ padding: 0.2 }), 100)
-        }}
+        onInit={handleInit}
         fitView
         minZoom={0.1}
         maxZoom={4}
@@ -154,9 +165,10 @@ function FlowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect, onF
       {/* Custom fit view button */}
       <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
         <button
-          onClick={onFitView}
+          onClick={handleFitViewClick}
           className="bg-white p-3 rounded-lg shadow-lg border-2 border-gray-200 hover:bg-gray-50 transition"
           title="Fit to view"
+          type="button"
         >
           <Maximize2 size={20} className="text-gray-700" />
         </button>
@@ -165,28 +177,22 @@ function FlowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect, onF
   )
 }
 
+// Main Content Component
 function VisualSitemapContent() {
-  const [url, setUrl] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [url, setUrl] = useState<string>('')
+  const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<ValidationIssue | null>(null)
   const [warnings, setWarnings] = useState<string[]>([])
-  const [nodes, setNodes, onNodesChange] = useNodesState([])
-  const [edges, setEdges, onEdgesChange] = useEdgesState([])
-  const [showCanvas, setShowCanvas] = useState(false)
-  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null)
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node[]>([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([])
+  const [showCanvas, setShowCanvas] = useState<boolean>(false)
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
     [setEdges]
   )
 
-  const handleFitView = () => {
-    if (reactFlowInstance) {
-      reactFlowInstance.fitView({ duration: 800, padding: 0.2 })
-    }
-  }
-
-  const convertToFlowData = (data: { pages?: SitemapNode[] }) => {
+  const convertToFlowData = useCallback((data: { pages?: SitemapNode[] }): { nodes: Node[], edges: Edge[] } => {
     const flowNodes: Node[] = []
     const flowEdges: Edge[] = []
     let nodeId = 0
@@ -197,7 +203,7 @@ function VisualSitemapContent() {
       level: number = 0, 
       xOffset: number = 0, 
       yOffset: number = 0
-    ) => {
+    ): void => {
       const currentNodeId = `node-${nodeId++}`
       const nodeStyle = getNodeStyle(level)
       
@@ -268,9 +274,9 @@ function VisualSitemapContent() {
     }
 
     return { nodes: flowNodes, edges: flowEdges }
-  }
+  }, [])
 
-  const generateVisual = async () => {
+  const generateVisual = async (): Promise<void> => {
     if (!url) {
       setError({ error: 'Please enter a URL' })
       return
@@ -313,31 +319,35 @@ function VisualSitemapContent() {
     }
   }
 
-  const downloadAsImage = () => {
+  const downloadAsImage = async (): Promise<void> => {
     const element = document.querySelector('.react-flow') as HTMLElement
-    if (!element) return
+    if (!element) {
+      alert('Canvas not found. Please try again.')
+      return
+    }
 
-    // Dynamically import to avoid SSR issues
-    import('html-to-image').then(({ toPng }) => {
-      toPng(element, {
+    try {
+      const { toPng } = await import('html-to-image')
+      const dataUrl = await toPng(element, {
         backgroundColor: '#ffffff',
         quality: 1,
         pixelRatio: 2,
       })
-        .then((dataUrl) => {
-          const link = document.createElement('a')
-          link.download = 'sitemap-visual.png'
-          link.href = dataUrl
-          link.click()
-        })
-        .catch((err) => {
-          console.error('Error downloading image:', err)
-          alert('Failed to download image. Please try again.')
-        })
-    }).catch((err) => {
-      console.error('Failed to load html-to-image:', err)
-      alert('Download feature unavailable. Please refresh the page.')
-    })
+      
+      const link = document.createElement('a')
+      link.download = 'sitemap-visual.png'
+      link.href = dataUrl
+      link.click()
+    } catch (err) {
+      console.error('Error downloading image:', err)
+      alert('Failed to download image. Please try again.')
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key === 'Enter') {
+      generateVisual()
+    }
   }
 
   return (
@@ -359,6 +369,7 @@ function VisualSitemapContent() {
               <button
                 onClick={downloadAsImage}
                 className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-green-600 text-white px-5 py-3 rounded-xl hover:from-green-600 hover:to-green-700 transition shadow-lg font-medium"
+                type="button"
               >
                 <Download size={18} />
                 <span className="hidden sm:inline">Download PNG</span>
@@ -381,10 +392,10 @@ function VisualSitemapContent() {
                 <input
                   type="url"
                   value={url}
-                  onChange={(e) => setUrl(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
                   placeholder="https://example.com"
                   className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-800 placeholder-gray-400 transition"
-                  onKeyPress={(e) => e.key === 'Enter' && generateVisual()}
+                  onKeyPress={handleKeyPress}
                 />
               </div>
 
@@ -392,6 +403,7 @@ function VisualSitemapContent() {
                 onClick={generateVisual}
                 disabled={loading}
                 className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-4 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-semibold shadow-lg text-base sm:text-lg"
+                type="button"
               >
                 {loading ? (
                   <>
@@ -417,7 +429,7 @@ function VisualSitemapContent() {
                     <h3 className="font-semibold text-red-800 mb-2">Security Issues Detected</h3>
                     <p className="text-red-700 mb-2 text-sm">{error.message}</p>
                     <ul className="list-disc list-inside space-y-1">
-                      {error.issues.map((issue, idx) => (
+                      {error.issues.map((issue: string, idx: number) => (
                         <li key={idx} className="text-red-700 text-sm">{issue}</li>
                       ))}
                     </ul>
@@ -439,7 +451,7 @@ function VisualSitemapContent() {
                   <div className="flex-1">
                     <h3 className="font-semibold text-yellow-800 mb-2">Warnings</h3>
                     <ul className="list-disc list-inside space-y-1">
-                      {warnings.map((warning, idx) => (
+                      {warnings.map((warning: string, idx: number) => (
                         <li key={idx} className="text-yellow-700 text-sm">{warning}</li>
                       ))}
                     </ul>
@@ -458,7 +470,7 @@ function VisualSitemapContent() {
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Interactive Sitemap Canvas</h2>
                   <p className="text-xs sm:text-sm text-gray-600 mt-1">
-                    🖱️ Drag nodes • 🔍 Scroll to zoom • 👆 Click and drag to pan
+                    🖱️ Drag nodes • 🔍 Scroll to zoom • 👆 Click and drag to pan • 🔲 Click maximize for fit view
                   </p>
                 </div>
                 <button
@@ -468,6 +480,7 @@ function VisualSitemapContent() {
                     setEdges([])
                   }}
                   className="text-sm bg-white px-4 py-2 rounded-lg border-2 border-gray-200 hover:bg-gray-50 transition font-medium"
+                  type="button"
                 >
                   New Sitemap
                 </button>
@@ -481,7 +494,6 @@ function VisualSitemapContent() {
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
-                onFitView={handleFitView}
               />
             </div>
           </div>
@@ -491,6 +503,7 @@ function VisualSitemapContent() {
   )
 }
 
+// Main Export Component
 export default function VisualSitemap() {
   return (
     <>
