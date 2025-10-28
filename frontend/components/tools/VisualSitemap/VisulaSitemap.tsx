@@ -18,9 +18,10 @@ import ReactFlow, {
   EdgeChange,
   ReactFlowInstance,
   useReactFlow,
+  Panel,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { Loader2, AlertTriangle, XCircle, Download, Maximize2 } from 'lucide-react'
+import { Loader2, AlertTriangle, XCircle, Download, Maximize2, ExternalLink } from 'lucide-react'
 
 // Custom styles for React Flow controls
 const customControlStyles = `
@@ -41,12 +42,18 @@ const customControlStyles = `
   .react-flow__controls-button svg {
     fill: white !important;
   }
+  .custom-node {
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .custom-node:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.3) !important;
+  }
 `
 
-// Environment variable for API URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
 
-// TypeScript Interfaces
 interface ValidationIssue {
   error?: string
   issues?: string[]
@@ -70,57 +77,28 @@ interface FlowCanvasProps {
   onConnect: (connection: Connection) => void
 }
 
-// Custom node styles with gradient backgrounds - MOVED OUTSIDE COMPONENT
-const getNodeStyle = (level: number): React.CSSProperties => {
-  const styles = [
-    { 
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      border: '2px solid #5a67d8',
-    },
-    { 
-      background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-      border: '2px solid #ed64a6',
-    },
-    { 
-      background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-      border: '2px solid #3b82f6',
-    },
-    { 
-      background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-      border: '2px solid #10b981',
-    },
-    { 
-      background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-      border: '2px solid #f59e0b',
-    },
+// Color schemes for different hierarchy levels
+const getNodeColor = (level: number): { bg: string; border: string; text: string } => {
+  const colors = [
+    { bg: '#14b8a6', border: '#0d9488', text: '#ffffff' }, // Root - Teal
+    { bg: '#3b82f6', border: '#2563eb', text: '#ffffff' }, // Level 1 - Blue
+    { bg: '#8b5cf6', border: '#7c3aed', text: '#ffffff' }, // Level 2 - Purple
+    { bg: '#ec4899', border: '#db2777', text: '#ffffff' }, // Level 3 - Pink
+    { bg: '#f59e0b', border: '#d97706', text: '#ffffff' }, // Level 4 - Orange
+    { bg: '#84cc16', border: '#65a30d', text: '#ffffff' }, // Level 5 - Lime
   ]
-  
-  const style = styles[Math.min(level, styles.length - 1)]
-  
-  return {
-    ...style,
-    color: 'white',
-    borderRadius: '16px',
-    padding: level === 0 ? '20px 28px' : '14px 22px',
-    fontSize: level === 0 ? '15px' : '13px',
-    fontWeight: '600',
-    minWidth: level === 0 ? '220px' : '180px',
-    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-    transition: 'all 0.3s ease',
-  }
+  return colors[Math.min(level, colors.length - 1)]
 }
 
-// FlowCanvas Component - Uses useReactFlow hook for fit view
 function FlowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect }: FlowCanvasProps) {
   const { fitView } = useReactFlow()
 
   const handleFitViewClick = useCallback(() => {
-    fitView({ duration: 800, padding: 0.2 })
+    fitView({ duration: 800, padding: 0.3 })
   }, [fitView])
 
-  // Initial fit view after nodes are loaded
   const handleInit = useCallback((reactFlowInstance: ReactFlowInstance) => {
-    setTimeout(() => reactFlowInstance.fitView({ padding: 0.2 }), 100)
+    setTimeout(() => reactFlowInstance.fitView({ padding: 0.25 }), 150)
   }, [])
 
   return (
@@ -136,48 +114,44 @@ function FlowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect }: F
         minZoom={0.1}
         maxZoom={4}
         attributionPosition="bottom-left"
-        defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
       >
-        <Controls 
-          showZoom={true}
-          showFitView={true}
-          showInteractive={true}
-          position="top-right"
-          className="!shadow-lg !border-2 !border-gray-200"
-        />
-        <MiniMap 
+        <Controls showZoom showFitView showInteractive position="top-right" />
+        <MiniMap
           nodeColor={(node: Node) => {
-            const bg = node.style?.background as string
-            return bg || '#94a3b8'
+            const nodeData = node.data as { level?: number }
+            const level = nodeData.level || 0
+            return getNodeColor(level).bg
           }}
-          maskColor="rgba(255, 255, 255, 0.2)"
-          className="!bg-white !border-2 !border-gray-200 !shadow-lg"
+          maskColor="rgba(30, 41, 59, 0.8)"
           position="bottom-left"
         />
-        <Background 
-          variant={BackgroundVariant.Dots} 
-          gap={16} 
-          size={1.5} 
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={30}
+          size={2.5}
           color="#e2e8f0"
+          className="bg-white"
         />
-      </ReactFlow>
-      
-      {/* Custom fit view button */}
-      <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
-        <button
-          onClick={handleFitViewClick}
-          className="bg-white p-3 rounded-lg shadow-lg border-2 border-gray-200 hover:bg-gray-50 transition"
-          title="Fit to view"
-          type="button"
+
+        <Panel
+          position="top-left"
+          className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-3"
         >
-          <Maximize2 size={20} className="text-gray-700" />
-        </button>
-      </div>
+          <button
+            onClick={handleFitViewClick}
+            className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2 rounded-lg hover:from-indigo-700 hover:to-purple-700 transition font-medium text-sm"
+            type="button"
+          >
+            <Maximize2 size={16} />
+            Fit View
+          </button>
+        </Panel>
+      </ReactFlow>
     </div>
   )
 }
 
-// Main Content Component
 function VisualSitemapContent() {
   const [url, setUrl] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
@@ -192,89 +166,154 @@ function VisualSitemapContent() {
     [setEdges]
   )
 
-  const convertToFlowData = useCallback((data: { pages?: SitemapNode[] }): { nodes: Node[], edges: Edge[] } => {
-    const flowNodes: Node[] = []
-    const flowEdges: Edge[] = []
-    let nodeId = 0
-    
-    const processNode = (
-      node: SitemapNode, 
-      parentId: string | null = null, 
-      level: number = 0, 
-      xOffset: number = 0, 
-      yOffset: number = 0
-    ): void => {
-      const currentNodeId = `node-${nodeId++}`
-      const nodeStyle = getNodeStyle(level)
-      
-      flowNodes.push({
-        id: currentNodeId,
-        type: 'default',
-        data: { 
-          label: (
-            <div style={{ textAlign: 'center', userSelect: 'none' }}>
-              <div style={{ fontWeight: '600', marginBottom: level === 0 ? '8px' : '2px' }}>
-                {node.title || 'Untitled'}
-              </div>
-              {level === 0 && (
-                <div style={{ fontSize: '11px', opacity: 0.95, fontWeight: '400' }}>
-                  {node.url}
+  const convertToFlowData = useCallback(
+    (data: { pages?: SitemapNode[] }): { nodes: Node[]; edges: Edge[] } => {
+      const flowNodes: Node[] = []
+      const flowEdges: Edge[] = []
+      let nodeId = 0
+
+      const processNode = (
+        node: SitemapNode,
+        parentId: string | null = null,
+        level: number = 0,
+        xOffset: number = 0,
+        yOffset: number = 0
+      ): number => {
+        const currentNodeId = `node-${nodeId++}`
+        const colors = getNodeColor(level)
+
+        const handleNodeClick = (url: string) => {
+          window.open(url, '_blank', 'noopener,noreferrer')
+        }
+
+        flowNodes.push({
+          id: currentNodeId,
+          type: 'default',
+          data: {
+            level,
+            url: node.url,
+            label: (
+              <div
+                className="custom-node"
+                style={{
+                  /* ensure background fully covers text and allow expansion */
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  padding: level === 0 ? '18px 26px' : '14px 20px',
+                  minWidth: level === 0 ? '240px' : '200px',
+                  width: 'auto',
+                  boxSizing: 'border-box',
+                  background: colors.bg,
+                  color: colors.text,
+                  borderRadius: '12px',
+                  boxShadow: '0 6px 14px rgba(0,0,0,0.12)',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  overflow: 'visible', // important to avoid clipping
+                  wordBreak: 'break-word',
+                }}
+                onClick={() => handleNodeClick(node.url)}
+              >
+                <div
+                  style={{
+                    fontWeight: '600',
+                    fontSize: level === 0 ? '15px' : '13px',
+                    marginBottom: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    lineHeight: 1.1,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <span style={{ display: 'inline-block' }}>{node.title || 'Untitled'}</span>
+                  <ExternalLink size={level === 0 ? 14 : 12} style={{ opacity: 0.85 }} />
                 </div>
-              )}
-            </div>
-          )
-        },
-        position: { x: xOffset, y: yOffset },
-        style: nodeStyle,
-        draggable: true,
-      })
+                {/* show url for root nodes only (as before) */}
+                {level === 0 && (
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      opacity: 0.95,
+                      fontWeight: '400',
+                      wordBreak: 'break-word',
+                      whiteSpace: 'normal',
+                      maxWidth: '100%',
+                      lineHeight: 1.3,
+                      marginTop: '4px',
+                    }}
+                  >
+                    {node.url}
+                  </div>
+                )}
+              </div>
+            ),
+          },
+          position: { x: xOffset, y: yOffset },
+          style: {
+            // keep external style minimal because the label contains background now
+            background: 'transparent',
+            color: colors.text,
+            border: `2px solid ${colors.border}`,
+            borderRadius: '12px',
+            boxShadow: 'none',
+            fontSize: level === 0 ? '14px' : '13px',
+            fontWeight: '600',
+          },
+          draggable: true,
+        })
 
-      if (parentId) {
-        flowEdges.push({
-          id: `edge-${parentId}-${currentNodeId}`,
-          source: parentId,
-          target: currentNodeId,
-          type: 'smoothstep',
-          animated: level === 1,
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            color: '#94a3b8',
-            width: 20,
-            height: 20,
-          },
-          style: { 
-            stroke: '#94a3b8', 
-            strokeWidth: 2.5 
-          },
+        if (parentId) {
+          flowEdges.push({
+            id: `edge-${parentId}-${currentNodeId}`,
+            source: parentId,
+            target: currentNodeId,
+            type: 'smoothstep',
+            animated: level === 1,
+            style: {
+              stroke: '#64748b',
+              strokeWidth: 2.5,
+            },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: '#64748b',
+              width: 20,
+              height: 20,
+            },
+          })
+        }
+
+        if (node.children && node.children.length > 0) {
+          const childSpacing = 280
+          const totalWidth = (node.children.length - 1) * childSpacing
+          const startX = xOffset - totalWidth / 2
+          node.children.forEach((child, index) => {
+            const childX = startX + index * childSpacing
+            const childY = yOffset + 180
+            processNode(child, currentNodeId, level + 1, childX, childY)
+          })
+        }
+
+        return xOffset
+      }
+
+      if (data.pages && data.pages.length > 0) {
+        const pageSpacing = 420
+        const totalWidth = (data.pages.length - 1) * pageSpacing
+        const startX = -totalWidth / 2
+        data.pages.forEach((page, index) => {
+          const pageX = startX + index * pageSpacing
+          processNode(page, null, 0, pageX, 0)
         })
       }
 
-      if (node.children && node.children.length > 0) {
-        const childSpacing = 320
-        const totalWidth = (node.children.length - 1) * childSpacing
-        const startX = xOffset - totalWidth / 2
-
-        node.children.forEach((child, index) => {
-          const childX = startX + index * childSpacing
-          const childY = yOffset + 180
-          processNode(child, currentNodeId, level + 1, childX, childY)
-        })
-      }
-    }
-
-    if (data.pages && data.pages.length > 0) {
-      const pageSpacing = 450
-      const totalWidth = (data.pages.length - 1) * pageSpacing
-      const startX = -totalWidth / 2
-
-      data.pages.forEach((page, index) => {
-        const pageX = startX + index * pageSpacing
-        processNode(page, null, 0, pageX, 0)
-      })
-    }
-
-    return { nodes: flowNodes, edges: flowEdges }
-  }, [])
+      return { nodes: flowNodes, edges: flowEdges }
+    },
+    []
+  )
 
   const generateVisual = async (): Promise<void> => {
     if (!url) {
@@ -293,11 +332,10 @@ function VisualSitemapContent() {
       const response = await fetch(`${API_URL}/generate-visual`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
+        body: JSON.stringify({ url }),
       })
 
       const data = await response.json()
-
       if (!response.ok) {
         setError(data)
         return
@@ -307,10 +345,8 @@ function VisualSitemapContent() {
       setNodes(flowNodes)
       setEdges(flowEdges)
       setShowCanvas(true)
-      
-      if (data.warnings) {
-        setWarnings(data.warnings)
-      }
+
+      if (data.warnings) setWarnings(data.warnings)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       setError({ error: message || 'Error generating visual sitemap' })
@@ -320,7 +356,7 @@ function VisualSitemapContent() {
   }
 
   const downloadAsImage = async (): Promise<void> => {
-    const element = document.querySelector('.react-flow') as HTMLElement
+    const element = document.querySelector('.react-flow__viewport') as HTMLElement
     if (!element) {
       alert('Canvas not found. Please try again.')
       return
@@ -330,12 +366,16 @@ function VisualSitemapContent() {
       const { toPng } = await import('html-to-image')
       const dataUrl = await toPng(element, {
         backgroundColor: '#ffffff',
-        quality: 1,
-        pixelRatio: 2,
+        quality: 1.0,
+        pixelRatio: 4, // higher for crisp output
+        cacheBust: true,
+        filter: (node: HTMLElement) => {
+          const exclusions = ['react-flow__minimap', 'react-flow__controls', 'react-flow__panel']
+          return !exclusions.some((cls) => node.classList?.contains(cls))
+        },
       })
-      
       const link = document.createElement('a')
-      link.download = 'sitemap-visual.png'
+      link.download = `sitemap-${new Date().getTime()}.png`
       link.href = dataUrl
       link.click()
     } catch (err) {
@@ -345,56 +385,55 @@ function VisualSitemapContent() {
   }
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>): void => {
-    if (e.key === 'Enter') {
-      generateVisual()
-    }
+    if (e.key === 'Enter') generateVisual()
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-      {/* Header Section */}
-      <div className="bg-white border-b border-gray-200 shadow-sm">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <div className="bg-slate-800/50 border-b border-slate-700 shadow-lg backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
-              <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
                 Visual Sitemap Builder
               </h1>
-              <p className="text-gray-600 mt-2 text-sm sm:text-base">
-                Create interactive, draggable site maps in seconds
+              <p className="text-slate-400 mt-2 text-sm sm:text-base">
+                Interactive tree-structure sitemap with clickable nodes
               </p>
             </div>
-            
+
             {showCanvas && (
+              
+              
               <button
                 onClick={downloadAsImage}
-                className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-green-600 text-white px-5 py-3 rounded-xl hover:from-green-600 hover:to-green-700 transition shadow-lg font-medium"
+                className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-5 py-3 rounded-xl hover:from-green-600 hover:to-emerald-700 transition shadow-lg font-medium"
                 type="button"
               >
                 <Download size={18} />
-                <span className="hidden sm:inline">Download PNG</span>
+                <span className="hidden sm:inline">Download HD PNG</span>
                 <span className="sm:hidden">Download</span>
               </button>
+              
             )}
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Input Section */}
         {!showCanvas && (
-          <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 border border-gray-100 max-w-2xl mx-auto">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-2xl p-6 sm:p-8 border border-slate-700 max-w-2xl mx-auto">
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
+                <label className="block text-sm font-semibold text-slate-300 mb-3">
                   Enter Website URL
                 </label>
                 <input
                   type="url"
                   value={url}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
+                  onChange={(e) => setUrl(e.target.value)}
                   placeholder="https://example.com"
-                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-800 placeholder-gray-400 transition"
+                  className="w-full p-4 border-2 border-slate-600 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 bg-slate-900 text-white placeholder-slate-500 transition"
                   onKeyPress={handleKeyPress}
                 />
               </div>
@@ -402,7 +441,7 @@ function VisualSitemapContent() {
               <button
                 onClick={generateVisual}
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-4 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-semibold shadow-lg text-base sm:text-lg"
+                className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 text-white px-6 py-4 rounded-xl hover:from-cyan-700 hover:to-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-semibold shadow-lg text-base sm:text-lg"
                 type="button"
               >
                 {loading ? (
@@ -412,8 +451,18 @@ function VisualSitemapContent() {
                   </>
                 ) : (
                   <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 10V3L4 14h7v7l9-11h-7z"
+                      />
                     </svg>
                     Generate Visual Sitemap
                   </>
@@ -422,15 +471,17 @@ function VisualSitemapContent() {
             </div>
 
             {error && error.issues && error.issues.length > 0 && (
-              <div className="mt-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg">
+              <div className="mt-6 p-4 bg-red-900/30 border-l-4 border-red-500 rounded-lg backdrop-blur-sm">
                 <div className="flex items-start gap-3">
-                  <XCircle className="text-red-600 flex-shrink-0 mt-0.5" size={24} />
+                  <XCircle className="text-red-400 flex-shrink-0 mt-0.5" size={24} />
                   <div className="flex-1">
-                    <h3 className="font-semibold text-red-800 mb-2">Security Issues Detected</h3>
-                    <p className="text-red-700 mb-2 text-sm">{error.message}</p>
+                    <h3 className="font-semibold text-red-300 mb-2">Security Issues Detected</h3>
+                    <p className="text-red-400 mb-2 text-sm">{error.message}</p>
                     <ul className="list-disc list-inside space-y-1">
                       {error.issues.map((issue: string, idx: number) => (
-                        <li key={idx} className="text-red-700 text-sm">{issue}</li>
+                        <li key={idx} className="text-red-400 text-sm">
+                          {issue}
+                        </li>
                       ))}
                     </ul>
                   </div>
@@ -439,20 +490,22 @@ function VisualSitemapContent() {
             )}
 
             {error && !error.issues && (
-              <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-red-700 text-sm">{error.error || error.message}</p>
+              <div className="mt-6 p-4 bg-red-900/30 border border-red-800 rounded-lg backdrop-blur-sm">
+                <p className="text-red-400 text-sm">{error.error || error.message}</p>
               </div>
             )}
 
             {warnings.length > 0 && (
-              <div className="mt-6 p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded-lg">
+              <div className="mt-6 p-4 bg-yellow-900/30 border-l-4 border-yellow-500 rounded-lg backdrop-blur-sm">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="text-yellow-600 flex-shrink-0 mt-0.5" size={24} />
+                  <AlertTriangle className="text-yellow-400 flex-shrink-0 mt-0.5" size={24} />
                   <div className="flex-1">
-                    <h3 className="font-semibold text-yellow-800 mb-2">Warnings</h3>
+                    <h3 className="font-semibold text-yellow-300 mb-2">Warnings</h3>
                     <ul className="list-disc list-inside space-y-1">
-                      {warnings.map((warning: string, idx: number) => (
-                        <li key={idx} className="text-yellow-700 text-sm">{warning}</li>
+                      {warnings.map((warn, idx) => (
+                        <li key={idx} className="text-yellow-400 text-sm">
+                          {warn}
+                        </li>
                       ))}
                     </ul>
                   </div>
@@ -462,32 +515,9 @@ function VisualSitemapContent() {
           </div>
         )}
 
-        {/* Canvas Section */}
-        {showCanvas && nodes.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200">
-            <div className="p-4 sm:p-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-200">
-              <div className="flex items-center justify-between flex-wrap gap-3">
-                <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Interactive Sitemap Canvas</h2>
-                  <p className="text-xs sm:text-sm text-gray-600 mt-1">
-                    🖱️ Drag nodes • 🔍 Scroll to zoom • 👆 Click and drag to pan • 🔲 Click maximize for fit view
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowCanvas(false)
-                    setNodes([])
-                    setEdges([])
-                  }}
-                  className="text-sm bg-white px-4 py-2 rounded-lg border-2 border-gray-200 hover:bg-gray-50 transition font-medium"
-                  type="button"
-                >
-                  New Sitemap
-                </button>
-              </div>
-            </div>
-            
-            <div className="w-full" style={{ height: 'calc(100vh - 280px)', minHeight: '500px' }}>
+        {showCanvas && (
+          <div className="mt-8 bg-white rounded-xl shadow-2xl overflow-hidden border border-slate-300 h-[85vh]">
+            <ReactFlowProvider>
               <FlowCanvas
                 nodes={nodes}
                 edges={edges}
@@ -495,22 +525,14 @@ function VisualSitemapContent() {
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
               />
-            </div>
+            </ReactFlowProvider>
           </div>
         )}
       </div>
+
+      <style>{customControlStyles}</style>
     </div>
   )
 }
 
-// Main Export Component
-export default function VisualSitemap() {
-  return (
-    <>
-      <style dangerouslySetInnerHTML={{ __html: customControlStyles }} />
-      <ReactFlowProvider>
-        <VisualSitemapContent />
-      </ReactFlowProvider>
-    </>
-  )
-}
+export default VisualSitemapContent
