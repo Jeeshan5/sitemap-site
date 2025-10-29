@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, FC } from 'react'
-import { Download, Loader2, Copy, Check, AlertTriangle, XCircle, ArrowLeft, Send } from 'lucide-react'
+import ExportModal from '../ExportModal'
+import { Download, Loader2, Copy, Check, AlertTriangle, XCircle, ArrowLeft, Send, Maximize2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
@@ -23,6 +24,7 @@ const HtmlSitemap: FC = () => {
     const [error, setError] = useState<ValidationIssue | null>(null)
     const [warnings, setWarnings] = useState<string[]>([])
     const [copied, setCopied] = useState(false)
+    const [showExport, setShowExport] = useState(false)
 
     const generateHtml = async () => {
         if (!url) {
@@ -214,6 +216,15 @@ const HtmlSitemap: FC = () => {
                                         <Download size={18} />
                                         Download
                                     </button>
+
+                                    <button
+                                        onClick={() => setShowExport(true)}
+                                        disabled={!result}
+                                        className={`flex items-center gap-2 ${result ? 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 shadow-violet-500/30' : 'bg-gray-700 cursor-not-allowed'} text-white px-4 py-2 rounded-xl transition-all font-medium shadow-lg`}
+                                    >
+                                        <Maximize2 size={18} />
+                                        Export
+                                    </button>
                                 </div>
                             </div>
                             <div className="bg-gray-950 border-2 border-purple-500/20 p-6 rounded-xl overflow-x-auto max-h-96 shadow-inner">
@@ -225,6 +236,16 @@ const HtmlSitemap: FC = () => {
                     )}
                 </div>
             </div>
+        {showExport && (
+            <ExportModal
+                onClose={() => setShowExport(false)}
+                getExportPayload={async (format: string) => {
+                    if (!result) return null
+                    // For PDF/PNG we send the HTML string so the backend can render it
+                    return { data: result }
+                }}
+            />
+        )}
         </div>
     )
 }
