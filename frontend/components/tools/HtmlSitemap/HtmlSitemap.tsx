@@ -239,7 +239,7 @@ const HtmlSitemap: FC = () => {
         {showExport && (
             <ExportModal
                 onClose={() => setShowExport(false)}
-                getExportPayload={async (format: string) => {
+                getExportPayload={async () => {
                     if (!result) return null
                     // For PDF/PNG we send the HTML string so the backend can render it
                     return { data: result }

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Download, FileText, FileSpreadsheet, FileCode, Image, FileJson, Image as SvgIcon } from "lucide-react";
+import { FileText, FileSpreadsheet, FileCode, Image as ImageIcon } from "lucide-react";
 
 type ExportPayload = { data: string; mime?: string } | null
 
@@ -15,13 +15,13 @@ const ExportModal = ({
   initialUrl?: string
 }) => {
   const exportOptions = [
-    { label: "PNG", icon: <Image />, format: "png" },
-    { label: "PDF", icon: <FileText />, format: "pdf" },
-    { label: "TXT", icon: <FileText />, format: "txt" },
-    { label: "HTML", icon: <FileSpreadsheet />, format: "html" },
-    { label: "XML", icon: <FileCode />, format: "xml" },
+  { label: "PNG", icon: <ImageIcon aria-hidden="true" />, format: "png" },
+    { label: "PDF", icon: <FileText aria-hidden="true" />, format: "pdf" },
+    { label: "TXT", icon: <FileText aria-hidden="true" />, format: "txt" },
+    { label: "HTML", icon: <FileSpreadsheet aria-hidden="true" />, format: "html" },
+    { label: "XML", icon: <FileCode aria-hidden="true" />, format: "xml" },
     // Replace the old Sitemap.xml button with a client-side SVG export option
-    { label: "SVG", icon: <SvgIcon />, format: "svg" },
+    { label: "SVG", icon: <FileCode aria-hidden="true" />, format: "svg" },
   ];
 
   const handleExport = async (format: string) => {
@@ -57,7 +57,7 @@ const ExportModal = ({
         const data = payload && payload.data ? payload.data : null
 
   // Helper: download raw data as a file
-  const downloadRaw = async (content: any, mime: string, ext: string, isBase64 = false) => {
+  const downloadRaw = async (content: string | ArrayBuffer | Uint8Array | null, mime: string, ext: string, isBase64 = false): Promise<void> => {
           // If content is a data URL, use fetch() to convert to a Blob reliably (handles base64 and utf8 cases)
           if (typeof content === 'string' && content.startsWith('data:')) {
             try {
@@ -86,16 +86,23 @@ const ExportModal = ({
               const byteNumbers = new Array(byteChars.length)
               for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i)
               const byteArray = new Uint8Array(byteNumbers)
-              blob = new Blob([byteArray as any], { type: mime })
-            } catch (e) {
+              blob = new Blob([byteArray.buffer as ArrayBuffer], { type: mime })
+            } catch {
               // If atob fails, attempt to decode as URI component
               const text = decodeURIComponent(content)
-              blob = new Blob([text as any], { type: mime })
+              blob = new Blob([text], { type: mime })
             }
           } else if (typeof content === 'string') {
-            blob = new Blob([content as any], { type: mime })
+            blob = new Blob([content], { type: mime })
           } else {
-            blob = new Blob([content as any], { type: mime })
+            // content may already be an ArrayBuffer or Uint8Array
+            if (content instanceof Uint8Array) {
+              blob = new Blob([content.buffer as ArrayBuffer], { type: mime })
+            } else if (content instanceof ArrayBuffer) {
+              blob = new Blob([content], { type: mime })
+            } else {
+              blob = new Blob([], { type: mime })
+            }
           }
 
           const objectUrl = URL.createObjectURL(blob)

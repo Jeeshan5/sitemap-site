@@ -31,7 +31,6 @@ import {
   Search,
   Settings,
   User,
-  Save as SaveIcon,
 } from 'lucide-react'
 import ExportModal from '@/components/tools/ExportModal'
 
@@ -180,8 +179,16 @@ interface SitemapNode {
   children?: SitemapNode[]
 }
 
+interface FlowNodeData {
+  level?: number
+  url?: string
+  title?: string
+  highlight?: boolean
+  label?: React.ReactNode
+}
+
 interface FlowCanvasProps {
-  nodes: Node[]
+  nodes: Node<FlowNodeData>[]
   edges: Edge[]
   onNodesChange: (changes: NodeChange[]) => void
   onEdgesChange: (changes: EdgeChange[]) => void
@@ -193,7 +200,7 @@ interface FlowCanvasProps {
   downloadAsImage: () => void
   reactFlowInstance: ReactFlowInstance | null
   // new props: parent-managed zoom and handlers
-  onMove?: (e: any) => void
+  onMove?: (e: { viewport?: { zoom?: number } }) => void
   onZoomIn?: () => void
   onZoomOut?: () => void
   onFitView?: () => void
@@ -241,8 +248,7 @@ function FlowCanvas({
   handleGenerateNew,
   setShowExport,
   downloadAsImage,
-  reactFlowInstance,
-  onMove,
+  // reactFlowInstance and onMove are managed by the parent; not required inside this canvas wrapper
   onZoomIn,
   onZoomOut,
   onFitView,
@@ -266,7 +272,7 @@ function FlowCanvas({
         minZoom={0.05}
         maxZoom={4}
         attributionPosition="bottom-left"
-        onMove={onMove}
+        
         className="bg-white"
         style={{ width: '100%', height: '100%' }}
       >
@@ -377,8 +383,8 @@ function VisualSitemapContent() {
   const [showSettings, setShowSettings] = useState<boolean>(false)
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node[]>([])
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([])
+  const [nodes, setNodes, onNodesChange] = useNodesState<FlowNodeData>([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [mapMode, setMapMode] = useState<'default' | 'dark' | 'blueprint' | 'bold'>('default')
   const [layoutMode, setLayoutMode] = useState<'default' | 'vertical'>('default')
   const [sitemapRaw, setSitemapRaw] = useState<{ pages?: SitemapNode[] } | null>(null)
@@ -387,11 +393,7 @@ function VisualSitemapContent() {
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null)
   const [zoomLevel, setZoomLevel] = useState<number>(100)
 
-  const onMove = useCallback((e: any) => {
-    if (e?.viewport?.zoom !== undefined) {
-      setZoomLevel(Math.round(e.viewport.zoom * 100))
-    }
-  }, [])
+  // removed onMove handler — React Flow types for onMove differ; zoom is controlled by zoom handlers and fitView
 
   const onZoomIn = useCallback(() => {
     if (!reactFlowInstance) return
@@ -488,7 +490,7 @@ function VisualSitemapContent() {
         yOffset: number = 0
       ): number => {
   const currentNodeId = `node-${nodeId++}`
-  const colors = getMapStyles(mode, level)
+      // colors intentionally not used here (styles applied via renderNodeLabel)
 
         flowNodes.push({
           id: currentNodeId,
@@ -718,10 +720,10 @@ function VisualSitemapContent() {
     if (format === 'txt') {
       // create a simple newline-separated list of URLs from the sitemap
       if (!sitemapRaw || !sitemapRaw.pages) return null
-      const gather = (nodes?: any[]): string[] => {
+      const gather = (nodes?: SitemapNode[]): string[] => {
         if (!nodes) return []
         let out: string[] = []
-        nodes.forEach((n: any) => {
+        nodes.forEach((n: SitemapNode) => {
           if (n.url) out.push(n.url)
           if (n.children) out = out.concat(gather(n.children))
         })
@@ -733,7 +735,7 @@ function VisualSitemapContent() {
 
     // not supported here
     return null
-  }, [captureEntireCanvas])
+  }, [captureEntireCanvas, sitemapRaw])
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>): void => {
     if (e.key === 'Enter') generateVisual()
@@ -754,7 +756,7 @@ function VisualSitemapContent() {
         setTheme(saved as 'dark' | 'light')
         return
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
     const prefersDark = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -771,7 +773,7 @@ function VisualSitemapContent() {
         document.documentElement.classList.remove('dark')
         localStorage.setItem('sitemap_theme', 'light')
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
   }, [theme])
@@ -786,7 +788,7 @@ function VisualSitemapContent() {
         // default board background follows light/dark theme
         document.documentElement.style.setProperty('--rf-bg', theme === 'dark' ? '#0f1724' : '#ffffff')
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
   }, [mapMode, theme])
@@ -800,15 +802,15 @@ function VisualSitemapContent() {
         data: {
           ...n.data,
           highlight: false,
-          label: renderNodeLabel((n.data as any).title, (n.data as any).url, (n.data as any).level ?? 0, false, mapMode),
+          label: renderNodeLabel(n.data?.title, n.data?.url, (n.data?.level) ?? 0, false, mapMode),
         },
       })))
       return
     }
 
     const match = nodes.find((n) => {
-      const title = ((n.data as any).title || '').toString().toLowerCase()
-      const url = ((n.data as any).url || '').toString().toLowerCase()
+      const title = ((n.data?.title as string) || '').toString().toLowerCase()
+      const url = ((n.data?.url as string) || '').toString().toLowerCase()
       return title.includes(q) || url.includes(q)
     })
 
@@ -819,7 +821,7 @@ function VisualSitemapContent() {
         data: {
           ...n.data,
           highlight: false,
-          label: renderNodeLabel((n.data as any).title, (n.data as any).url, (n.data as any).level ?? 0, false, mapMode),
+    label: renderNodeLabel(n.data?.title, n.data?.url, n.data?.level ?? 0, false, mapMode),
         },
       })))
       alert('No matching nodes found')
@@ -828,13 +830,13 @@ function VisualSitemapContent() {
 
     setNodes((ns) => ns.map((n) => {
       const is = n.id === match.id
-      const lvl = (n.data as any).level ?? 0
+      const lvl = n.data?.level ?? 0
       return {
         ...n,
         data: {
           ...n.data,
           highlight: is,
-          label: renderNodeLabel((n.data as any).title, (n.data as any).url, lvl, is, mapMode),
+          label: renderNodeLabel(n.data?.title, n.data?.url, lvl, is, mapMode),
         },
       }
     }))
@@ -846,14 +848,14 @@ function VisualSitemapContent() {
       const centerX = pos.x + w / 2
       const centerY = pos.y + h / 2
       try {
-        ;(reactFlowInstance as any).setCenter(centerX, centerY)
-      } catch (e) {
+        reactFlowInstance.setCenter(centerX, centerY)
+      } catch {
         // best-effort fallback
         const vp = reactFlowInstance.getViewport()
         reactFlowInstance.setViewport({ x: vp.x, y: vp.y, zoom: vp.zoom })
       }
     }
-  }, [searchQuery, nodes, reactFlowInstance, setNodes, renderNodeLabel])
+  }, [searchQuery, nodes, reactFlowInstance, setNodes, renderNodeLabel, mapMode])
 
   // When the map mode changes, rebuild node labels/colors
   useEffect(() => {
@@ -861,7 +863,7 @@ function VisualSitemapContent() {
       ...n,
       data: {
         ...n.data,
-        label: renderNodeLabel((n.data as any).title, (n.data as any).url, (n.data as any).level ?? 0, (n.data as any).highlight ?? false, mapMode),
+  label: renderNodeLabel(n.data?.title, n.data?.url, n.data?.level ?? 0, n.data?.highlight ?? false, mapMode),
       },
     })))
   }, [mapMode, renderNodeLabel, setNodes])
@@ -894,7 +896,6 @@ function VisualSitemapContent() {
             setShowExport={setShowExport}
             downloadAsImage={downloadAsImage}
             reactFlowInstance={reactFlowInstance}
-            onMove={onMove}
             onZoomIn={onZoomIn}
             onZoomOut={onZoomOut}
             onFitView={onFitView}

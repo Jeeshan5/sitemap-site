@@ -9,7 +9,6 @@ import {
   Send,
   ArrowLeft,
   Maximize2,
-  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import ExportModal from '../ExportModal'
@@ -259,7 +258,7 @@ const XmlSitemap: FC = () => {
       {showExport && (
         <ExportModal
           onClose={() => setShowExport(false)}
-          getExportPayload={async (format: string) => {
+          getExportPayload={async () => {
             if (!result) return null
             // Return the XML string; backend can wrap or convert as needed
             return { data: result }
