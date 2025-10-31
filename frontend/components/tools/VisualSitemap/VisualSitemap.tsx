@@ -173,16 +173,42 @@ const customControlStyles = `
     .visual-bottom-toolbar { padding: 6px 8px; gap: 8px; }
     .visual-bottom-toolbar button { padding: 6px 8px; font-size: 13px; }
     .visual-zoom-control { padding: 4px 8px; right: 12px; bottom: 12px; }
-    .visual-top-toolbar { right: 8px !important; top: 68px !important; }
+    /* hide desktop top toolbar on smaller screens */
+    .visual-top-toolbar { display: none !important; }
     .project-settings-panel { right: 8px !important; top: 72px !important; width: calc(100% - 24px) !important; }
+  /* show and position mobile controls below the navbar (push further down to avoid overlap) */
+  .visual-mobile-controls { display: flex !important; top: 96px !important; left: 50% !important; transform: translateX(-50%) !important; width: calc(100% - 32px) !important; padding: 6px 10px !important; box-sizing: border-box; z-index: 70 !important; }
+  .visual-mobile-controls > div { width: 100%; background: rgba(255,255,255,0.96); border-radius: 12px; padding: 6px 8px; box-shadow: 0 8px 28px rgba(2,6,23,0.12); align-items: center; }
+  .visual-mobile-controls input[type="search"] { height: 40px; font-size: 15px; padding-left: 12px; }
+  .visual-mobile-controls button { width: 40px; height: 40px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+  /* lift bottom toolbar on mobile so it doesn't overlap preview/minimap */
+  .visual-bottom-toolbar { bottom: 160px !important; transform: translateY(-20px); }
+  /* reduce zoom control size and move above preview */
+  .visual-zoom-control { transform: scale(0.82); right: 12px !important; bottom: 140px !important; }
   }
 
   @media (max-width: 420px) {
-    .visual-top-toolbar { left: 50% !important; right: auto !important; transform: translateX(-50%); width: calc(100% - 32px); }
+    .visual-top-toolbar { display: none !important; }
     .visual-bottom-toolbar { left: 50% !important; transform: translateX(-50%); padding: 8px; gap: 6px; }
     .visual-bottom-toolbar .hidden.sm\:inline { display: none !important; }
     .project-settings-panel { width: calc(100% - 24px) !important; max-height: calc(100vh - 120px); }
+    .visual-mobile-controls { top: 96px !important; left: 50% !important; transform: translateX(-50%) !important; display: flex !important; padding: 6px 8px !important; width: calc(100% - 32px) !important; box-sizing: border-box; }
+    .visual-mobile-controls > div { padding: 6px 8px; }
+    .visual-bottom-toolbar { bottom: 160px !important; }
+    .visual-zoom-control { transform: scale(0.72); right: 10px !important; bottom: 160px !important; }
   }
+
+  /* Dark mode tweaks for mobile controls and project settings */
+  .dark .visual-mobile-controls > div { background: rgba(15,23,36,0.92); color: #e6eef7; border: 1px solid rgba(255,255,255,0.04); }
+  .dark .visual-mobile-controls input { background: transparent; color: #e6eef7; border-color: rgba(255,255,255,0.06); }
+  .dark .visual-mobile-controls input::placeholder { color: rgba(226,232,240,0.35); }
+
+  .dark .project-settings-panel { background: #0f1724 !important; color: #e6eef7 !important; border-color: #1f2937 !important; }
+  .dark .project-settings-panel .p-4, .dark .project-settings-panel .p-3 { color: #e6eef7 !important; }
+  .dark .project-settings-panel button { color: #e6eef7 !important; }
+
+  /* Mobile controls are hidden by default on desktop */
+  .visual-mobile-controls { display: none; }
 `
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
@@ -243,7 +269,7 @@ const getMapStyles = (mode: string, level: number): { bg: string; border: string
   }
   if (mode === 'bold') {
     // make bold mode more colorful: use different palettes per level so the tree looks vibrant
-    if (level === 0) return { bg: '#fff7ed', border: '#92400e', text: '#7c2d12', headerBg: '#fff1e6', urlText: '#92400e', accent: '#f97316' } // warm orange root
+    if (level === 0) return { bg: '#4edb16ff', border: '#92400e', text: '#7c2d12', headerBg: '#fff1e6', urlText: '#92400e', accent: '#dd2810ff' } // warm orange root
     if (level === 1) return { bg: '#eef2ff', border: '#3730a3', text: '#1f2937', headerBg: '#eef2ff', urlText: '#3730a3', accent: '#6366f1' } // indigo
     if (level === 2) return { bg: '#f0fdf4', border: '#065f46', text: '#064e3b', headerBg: '#ecfdf5', urlText: '#065f46', accent: '#10b981' } // green
     // deeper levels fall back to a pink/purple card
@@ -252,7 +278,7 @@ const getMapStyles = (mode: string, level: number): { bg: string; border: string
 
   // default mode (existing): teal for root, purple for others
   if (level === 0) {
-    return { bg: 'linear-gradient(90deg, #38b2ac 0%, #319795 100%)', border: '#2c7a7b', text: '#ffffff', headerBg: undefined, urlText: '#ffffff', accent: '#10b981' }
+    return { bg: 'linear-gradient(90deg, #38b2ac 0%, #319795 100%)', border: '#2c7a7b', text: '#111010ff', headerBg: undefined, urlText: '#ffffff', accent: '#10b981' }
   }
   return { bg: '#8b5cf6', border: '#7c3aed', text: '#ffffff', headerBg: undefined, urlText: '#ffffff', accent: '#8b5cf6' }
 }
@@ -904,7 +930,7 @@ function VisualSitemapContent() {
   }, [layoutMode, sitemapRaw, convertToFlowData, mapMode, setNodes, setEdges])
 
   return (
-    <div className={`fixed inset-0 overflow-hidden ${theme === 'dark' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
+    <div className={`fixed inset-0 overflow-hidden ${isGenerated ? 'bg-white text-slate-900' : (theme === 'dark' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900')}`}>
       <div className="h-full w-full"> 
         <ReactFlowProvider>
           <FlowCanvas
@@ -928,9 +954,9 @@ function VisualSitemapContent() {
         </ReactFlowProvider>
       </div>
 
-      {/* Top-right mini toolbar: Save, Search, Settings, User */}
+      {/* Top-right mini toolbar: Save, Search, Settings, User (desktop) */}
       {/* Use a regular fixed div here (Panel must be used inside ReactFlowProvider) */}
-  <div className="fixed z-70 visual-top-toolbar" style={{ right: 20, top: 86 }}>
+      <div className="fixed z-70 visual-top-toolbar" style={{ right: 20, top: 86 }}>
         <div className="flex items-center gap-3">
           <div className="relative">
             <input
@@ -969,12 +995,53 @@ function VisualSitemapContent() {
         </div>
       </div>
 
+      {/* Mobile-only controls: centered below header to avoid overlapping nav */}
+      <div className="visual-mobile-controls fixed z-70" aria-hidden={false}>
+        <div className="flex items-center gap-3 w-full justify-center">
+          <div className="relative" style={{ flex: '1 1 auto', maxWidth: 420 }}>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search..."
+              className={`w-full px-3 py-2 rounded-full border focus:outline-none focus:ring-2 ${theme === 'dark' ? 'border-slate-600 bg-slate-800 text-white' : 'border-slate-200 bg-white text-slate-900'}`}
+              onKeyDown={(e) => { if (e.key === 'Enter') performSearch() }}
+            />
+            <button
+              type="button"
+              onClick={performSearch}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400"
+              aria-label="Search nodes"
+            >
+              <Search size={16} />
+            </button>
+          </div>
+
+          <button
+            className={`p-2 rounded-full shadow-sm border flex items-center justify-center ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+            title="Project settings"
+            onClick={() => setShowSettings((s) => !s)}
+            aria-label="Project settings"
+            style={{ width: 40, height: 40 }}
+          >
+            <Settings size={16} />
+          </button>
+
+          <button className={`p-2 rounded-full ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200'} shadow-sm`} title="Profile" aria-label="Profile">
+            <User size={16} />
+          </button>
+        </div>
+      </div>
+
       {/* Project Settings panel (simple placeholder matching screenshot layout) */}
   {showSettings && (
-  <div className={`fixed right-6 top-20 w-96 rounded-xl shadow-2xl border z-60 project-settings-panel ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>
+  <div
+    className={`fixed right-6 top-20 w-96 rounded-xl shadow-2xl border z-60 project-settings-panel ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+    style={{ zIndex: 200 }}
+  >
           <div className={`flex items-center justify-between p-4 border-b ${theme === 'dark' ? 'border-slate-700' : 'border-slate-100'}`}>
             <h3 className="text-lg font-semibold">Project settings</h3>
-            <button onClick={() => setShowSettings(false)} className="px-2 py-1 text-slate-500">✕</button>
+            <button onClick={() => setShowSettings(false)} className="px-2 py-1 text-slate-500" style={{ zIndex: 300 }} aria-label="Close settings">✕</button>
           </div>
           <div className="p-4">
             <p className="text-sm text-slate-400">Theme</p>
@@ -998,7 +1065,7 @@ function VisualSitemapContent() {
               {/* Default card */}
               <button
                 onClick={() => setMapMode('default')}
-                className={`p-3 rounded-lg border shadow-sm bg-white flex flex-col items-start gap-2 hover:shadow-md transform hover:-translate-y-0.5 transition ${mapMode === 'default' ? 'ring-2 ring-indigo-500' : 'border-slate-200'}`}>
+                className={`p-3 rounded-lg border shadow-sm flex flex-col items-start gap-2 hover:shadow-md transform hover:-translate-y-0.5 transition ${theme === 'dark' ? 'bg-slate-800 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'} ${mapMode === 'default' ? 'ring-2 ring-indigo-500' : ''}`}>
                 <div className="w-full h-10 rounded-sm overflow-hidden border" style={{ background: 'linear-gradient(90deg,#38b2ac,#319795)' }} />
                 <div className="w-full text-sm font-medium">Default</div>
               </button>
@@ -1006,7 +1073,7 @@ function VisualSitemapContent() {
               {/* Dark card: shows a dark board preview (but nodes remain colored per mode selection) */}
               <button
                 onClick={() => setMapMode('dark')}
-                className={`p-3 rounded-lg border shadow-sm flex flex-col items-start gap-2 hover:shadow-md transform hover:-translate-y-0.5 transition ${mapMode === 'dark' ? 'ring-2 ring-indigo-500 bg-slate-900 text-white' : 'border-slate-200 bg-white'}`}>
+                className={`p-3 rounded-lg border shadow-sm flex flex-col items-start gap-2 hover:shadow-md transform hover:-translate-y-0.5 transition ${theme === 'dark' ? 'bg-slate-800 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'} ${mapMode === 'dark' ? 'ring-2 ring-indigo-500' : ''}`}>
                 <div className="w-full h-10 rounded-sm overflow-hidden border" style={{ background: '#0b1220' }} />
                 <div className="w-full text-sm font-medium">Dark</div>
               </button>
@@ -1014,7 +1081,7 @@ function VisualSitemapContent() {
               {/* Blueprint card */}
               <button
                 onClick={() => setMapMode('blueprint')}
-                className={`p-3 rounded-lg border shadow-sm flex flex-col items-start gap-2 hover:shadow-md transform hover:-translate-y-0.5 transition ${mapMode === 'blueprint' ? 'ring-2 ring-indigo-500' : 'border-slate-200 bg-white'}`}>
+                className={`p-3 rounded-lg border shadow-sm flex flex-col items-start gap-2 hover:shadow-md transform hover:-translate-y-0.5 transition ${theme === 'dark' ? 'bg-slate-800 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'} ${mapMode === 'blueprint' ? 'ring-2 ring-indigo-500' : ''}`}>
                 <div className="w-full h-10 rounded-sm overflow-hidden border" style={{ background: '#f0f7ff' }} />
                 <div className="w-full text-sm font-medium">Blueprint</div>
               </button>
@@ -1022,7 +1089,7 @@ function VisualSitemapContent() {
               {/* Bold card */}
               <button
                 onClick={() => setMapMode('bold')}
-                className={`p-3 rounded-lg border shadow-sm flex flex-col items-start gap-2 hover:shadow-md transform hover:-translate-y-0.5 transition ${mapMode === 'bold' ? 'ring-2 ring-indigo-500' : 'border-slate-200 bg-white'}`}>
+                className={`p-3 rounded-lg border shadow-sm flex flex-col items-start gap-2 hover:shadow-md transform hover:-translate-y-0.5 transition ${theme === 'dark' ? 'bg-slate-800 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'} ${mapMode === 'bold' ? 'ring-2 ring-indigo-500' : ''}`}>
                 <div className="w-full h-10 rounded-sm overflow-hidden border" style={{ background: 'linear-gradient(90deg,#fff7ed,#eef2ff)' }} />
                 <div className="w-full text-sm font-medium">Bold</div>
               </button>
