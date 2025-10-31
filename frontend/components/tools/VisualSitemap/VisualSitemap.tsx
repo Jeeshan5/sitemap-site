@@ -160,6 +160,29 @@ const customControlStyles = `
     box-shadow: 0 6px 18px rgba(2,6,23,0.06);
     border: 1px solid rgba(226,232,240,0.7);
   }
+
+  /* Top-right toolbar (outside ReactFlow) */
+  .visual-top-toolbar { }
+
+  /* Project settings panel adjustments */
+  .project-settings-panel { max-height: calc(100vh - 120px); overflow: auto; }
+
+  /* Responsive rules */
+  @media (max-width: 768px) {
+    .custom-zoom-controls { display: none; }
+    .visual-bottom-toolbar { padding: 6px 8px; gap: 8px; }
+    .visual-bottom-toolbar button { padding: 6px 8px; font-size: 13px; }
+    .visual-zoom-control { padding: 4px 8px; right: 12px; bottom: 12px; }
+    .visual-top-toolbar { right: 8px !important; top: 68px !important; }
+    .project-settings-panel { right: 8px !important; top: 72px !important; width: calc(100% - 24px) !important; }
+  }
+
+  @media (max-width: 420px) {
+    .visual-top-toolbar { left: 50% !important; right: auto !important; transform: translateX(-50%); width: calc(100% - 32px); }
+    .visual-bottom-toolbar { left: 50% !important; transform: translateX(-50%); padding: 8px; gap: 6px; }
+    .visual-bottom-toolbar .hidden.sm\:inline { display: none !important; }
+    .project-settings-panel { width: calc(100% - 24px) !important; max-height: calc(100vh - 120px); }
+  }
 `
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
@@ -907,7 +930,7 @@ function VisualSitemapContent() {
 
       {/* Top-right mini toolbar: Save, Search, Settings, User */}
       {/* Use a regular fixed div here (Panel must be used inside ReactFlowProvider) */}
-      <div className="fixed z-70" style={{ right: 20, top: 86 }}>
+  <div className="fixed z-70 visual-top-toolbar" style={{ right: 20, top: 86 }}>
         <div className="flex items-center gap-3">
           <div className="relative">
             <input
@@ -947,8 +970,8 @@ function VisualSitemapContent() {
       </div>
 
       {/* Project Settings panel (simple placeholder matching screenshot layout) */}
-      {showSettings && (
-        <div className={`fixed right-6 top-20 w-96 rounded-xl shadow-2xl border z-60 ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>
+  {showSettings && (
+  <div className={`fixed right-6 top-20 w-96 rounded-xl shadow-2xl border z-60 project-settings-panel ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>
           <div className={`flex items-center justify-between p-4 border-b ${theme === 'dark' ? 'border-slate-700' : 'border-slate-100'}`}>
             <h3 className="text-lg font-semibold">Project settings</h3>
             <button onClick={() => setShowSettings(false)} className="px-2 py-1 text-slate-500">✕</button>
