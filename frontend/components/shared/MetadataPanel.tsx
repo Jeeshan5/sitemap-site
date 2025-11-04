@@ -1,6 +1,6 @@
 // frontend/components/shared/MetadataPanel.tsx
 import React from 'react';
-import { X, ExternalLink, RefreshCw, Trash2, ArrowUpRight } from 'lucide-react';
+import { X, RefreshCw, Trash2, ArrowUpRight } from 'lucide-react';
 
 // Re-defining the SitemapNode interface for type safety in this component
 interface SitemapNode {

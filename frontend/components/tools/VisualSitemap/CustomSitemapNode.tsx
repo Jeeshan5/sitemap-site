@@ -59,10 +59,8 @@ interface FlowNodeData {
     onToggleCollapse?: (url: string) => void;
     level?: number;
     mapMode?: MapMode;
-    [key: string]: any;
+    [key: string]: unknown;
 }
-
-interface CustomNodeProps extends NodeProps<FlowNodeData> {}
 
 // --- FIXED: Improved color contrast logic ---
 const getNodeStyleColors = (data: FlowNodeData) => {
@@ -123,23 +121,10 @@ const getNodeStyleColors = (data: FlowNodeData) => {
     return { mainColor, accentColor, textColor, urlTextColor, borderStyle, boxShadow, bodyBgColor };
 };
 
-const CustomSitemapNode: React.FC<CustomNodeProps> = ({ data, selected }) => {
+const CustomSitemapNode: React.FC<NodeProps<FlowNodeData>> = ({ data, selected }) => {
     const { mainColor, textColor, urlTextColor, borderStyle, boxShadow, bodyBgColor } = useMemo(
         () => getNodeStyleColors(data),
-        [
-            data.url,
-            data.title,
-            data.inboundLinks,
-            data.hasChildren,
-            data.isCollapsed,
-            data.isRedirect,
-            data.isNoIndex,
-            data.status,
-            data.highlight,
-            data.selected,
-            data.mapMode,
-            data.level
-        ]
+        [data]
     );
 
     React.useEffect(() => {
@@ -159,7 +144,7 @@ const CustomSitemapNode: React.FC<CustomNodeProps> = ({ data, selected }) => {
                 data.onToggleCollapse(data.url);
             }
         },
-        [data.onToggleCollapse, data.url, data.isCollapsed]
+        [data]
     );
 
     const nodeHeight = 70;
@@ -216,17 +201,19 @@ const CustomSitemapNode: React.FC<CustomNodeProps> = ({ data, selected }) => {
                             </button>
                         )}
 
-                        <a
-                            href={data.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            title={`Open ${data.url}`}
-                            className="opacity-80 hover:opacity-100 p-1 rounded-sm"
-                            style={{ color: textColor }}
-                        >
-                            <ExternalLink size={14} />
-                        </a>
+                        {data.url && (
+                            <a
+                                href={data.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                title={`Open ${data.url}`}
+                                className="opacity-80 hover:opacity-100 p-1 rounded-sm"
+                                style={{ color: textColor }}
+                            >
+                                <ExternalLink size={14} />
+                            </a>
+                        )}
                     </div>
                 </div>
 

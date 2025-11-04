@@ -19,14 +19,12 @@ import ReactFlow, {
   NodeTypes,
   EdgeTypes,
   Panel,
-  Node as ReactFlowNode,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import {
   Loader2,
   Download,
   Maximize2,
-  ExternalLink,
   Share2,
   RotateCcw,
   Minus,
@@ -113,36 +111,30 @@ interface FlowCanvasProps {
   setShowExport: (show: boolean) => void
   downloadAsImage: () => void
   reactFlowInstance: ReactFlowInstance | null
-  // new props: parent-managed zoom and handlers
   onMove?: (e: { viewport?: { zoom?: number } }) => void
   onZoomIn?: () => void
   onZoomOut?: () => void
   onFitView?: () => void
-  onNodeClick?: (e: any, node: Node<FlowNodeData>) => void
+  onNodeClick?: (e: React.MouseEvent, node: Node<FlowNodeData>) => void
   zoomLevel?: number
   mapMode?: 'default' | 'dark' | 'blueprint' | 'bold'
 }
 
 const getMapStyles = (mode: string, level: number): { bg: string; border: string; text: string; headerBg?: string; urlText?: string; accent?: string } => {
-  // Provide a few visual modes for the map nodes
   if (mode === 'dark') {
     return { bg: '#0f1724', border: '#24303b', text: '#e6eef7', headerBg: '#0b1220', urlText: '#cbd5e1', accent: '#06b6d4' }
   }
   if (mode === 'blueprint') {
-    // blueprint: pale background with blue accents
     if (level === 0) return { bg: '#e8f1fb', border: '#93c5fd', text: '#0f1724', headerBg: '#d9eafc', urlText: '#0b2540', accent: '#3b82f6' }
     return { bg: '#f0f7ff', border: '#60a5fa', text: '#0b2540', headerBg: '#eaf4ff', urlText: '#075985', accent: '#2563eb' }
   }
   if (mode === 'bold') {
-    // make bold mode more colorful: use different palettes per level so the tree looks vibrant
-    if (level === 0) return { bg: '#4edb16ff', border: '#92400e', text: '#7c2d12', headerBg: '#fff1e6', urlText: '#92400e', accent: '#dd2810ff' } // warm orange root
-    if (level === 1) return { bg: '#eef2ff', border: '#3730a3', text: '#1f2937', headerBg: '#eef2ff', urlText: '#3730a3', accent: '#6366f1' } // indigo
-    if (level === 2) return { bg: '#f0fdf4', border: '#065f46', text: '#064e3b', headerBg: '#ecfdf5', urlText: '#065f46', accent: '#10b981' } // green
-    // deeper levels fall back to a pink/purple card
+    if (level === 0) return { bg: '#4edb16ff', border: '#92400e', text: '#7c2d12', headerBg: '#fff1e6', urlText: '#92400e', accent: '#dd2810ff' }
+    if (level === 1) return { bg: '#eef2ff', border: '#3730a3', text: '#1f2937', headerBg: '#eef2ff', urlText: '#3730a3', accent: '#6366f1' }
+    if (level === 2) return { bg: '#f0fdf4', border: '#065f46', text: '#064e3b', headerBg: '#ecfdf5', urlText: '#065f46', accent: '#10b981' }
     return { bg: '#fff0f6', border: '#9f1239', text: '#4c0519', headerBg: '#fff0f6', urlText: '#9f1239', accent: '#ec4899' }
   }
 
-  // default mode (existing): teal for root, purple for others
   if (level === 0) {
     return { bg: 'linear-gradient(90deg, #38b2ac 0%, #319795 100%)', border: '#2c7a7b', text: '#111010ff', headerBg: undefined, urlText: '#ffffff', accent: '#10b981' }
   }
@@ -366,7 +358,7 @@ function VisualSitemapContent() {
     })
   }, [sitemapRaw])
 
-  const convertToFlowData = useCallback((data: { pages?: SitemapNode[] }, layout: 'default' | 'vertical' = 'default', mode: string = 'default'): { nodes: Node[]; edges: Edge[] } => {
+  const convertToFlowData = useCallback((data: { pages?: SitemapNode[] }, mode: string = 'default'): { nodes: Node[]; edges: Edge[] } => {
     const flowNodes: Node[] = []
     const flowEdges: Edge[] = []
     let nodeIdCounter = 0
@@ -380,9 +372,10 @@ function VisualSitemapContent() {
         if (node.children) flattenLinks(node.children)
       })
     }
+    
     flattenLinks(data.pages)
 
-    const processNode = (node: SitemapNode, parentId: string | null = null, level: number = 0, xOffset: number = 0, yOffset: number = 0): number => {
+    const processNode = (node: SitemapNode, parentId: string | null = null, level: number = 0, xOffset: number = 0): number => {
       const currentNodeId = `node-${nodeIdCounter++}`
       const calculatedWidth = calculateNodeSize(node.inboundLinks ?? 0, allLinks)
       const newYOffset = level * levelHeight
@@ -435,7 +428,7 @@ function VisualSitemapContent() {
         const startX = xOffset - totalWidth / 2
 
         visibleChildren.forEach((child, i) =>
-          processNode(child, currentNodeId, level + 1, startX + i * siblingSpacing, newYOffset)
+          processNode(child, currentNodeId, level + 1, startX + i * siblingSpacing)
         )
       }
       return xOffset
@@ -446,13 +439,13 @@ function VisualSitemapContent() {
       const totalWidth = (data.pages.length - 1) * pageSpacing
       const startX = -totalWidth / 2
       data.pages.forEach((page, i) =>
-        processNode(page, null, 0, startX + i * pageSpacing, 0)
+        processNode(page, null, 0, startX + i * pageSpacing)
       )
     }
     return { nodes: flowNodes, edges: flowEdges }
   }, [calculateNodeSize, toggleCollapse])
 
-  const handleNodeClick = useCallback((evt: any, node: Node<FlowNodeData>) => {
+  const handleNodeClick = useCallback((evt: React.MouseEvent, node: Node<FlowNodeData>) => {
     const traverseFind = (nodes: SitemapNode[] | undefined): SitemapNode | undefined => {
       if (!nodes) return undefined
       for (const n of nodes) {
@@ -465,7 +458,7 @@ function VisualSitemapContent() {
 
     if (sitemapRaw?.pages) {
       const fullData = traverseFind(sitemapRaw.pages)
-      setSelectedNode(fullData as any ?? node.data)
+      setSelectedNode((fullData as FlowNodeData) ?? node.data)
     } else {
       setSelectedNode(node.data)
     }
@@ -499,7 +492,7 @@ function VisualSitemapContent() {
 
       setSitemapRaw(data)
 
-      const { nodes: flowNodes, edges: flowEdges } = convertToFlowData(data, layoutMode, mapMode)
+  const { nodes: flowNodes, edges: flowEdges } = convertToFlowData(data, mapMode)
       setNodes(flowNodes)
       setEdges(flowEdges)
       setIsGenerated(true)
@@ -756,7 +749,7 @@ function VisualSitemapContent() {
   useEffect(() => {
     if (!sitemapRaw) return
     try {
-      const { nodes: newNodes, edges: newEdges } = convertToFlowData(sitemapRaw, layoutMode, mapMode)
+      const { nodes: newNodes, edges: newEdges } = convertToFlowData(sitemapRaw, mapMode)
       setNodes(newNodes)
       setEdges(newEdges)
     } catch (e) {
@@ -767,7 +760,7 @@ function VisualSitemapContent() {
   useEffect(() => {
     if (!sitemapRaw) return
     try {
-      const { nodes: newNodes, edges: newEdges } = convertToFlowData(sitemapRaw, layoutMode, mapMode)
+      const { nodes: newNodes, edges: newEdges } = convertToFlowData(sitemapRaw, mapMode)
       setNodes(newNodes)
       setEdges(newEdges)
 
@@ -848,9 +841,12 @@ function VisualSitemapContent() {
       </div>
 
       {selectedNode && (
-        <MetadataPanel nodeData={selectedNode as any} onClose={() => setSelectedNode(null)} theme={theme} />
-      )}
-
+  <MetadataPanel 
+    nodeData={selectedNode as SitemapNode} 
+    onClose={() => setSelectedNode(null)} 
+    theme={theme} 
+  />
+)}
       <div className="visual-mobile-controls fixed z-70" aria-hidden={false}>
         <div className="flex items-center gap-3 w-full justify-center">
           <div className="relative" style={{ flex: '1 1 auto', maxWidth: 420 }}>
