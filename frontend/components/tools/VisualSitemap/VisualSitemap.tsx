@@ -33,7 +33,7 @@ import {
   Settings,
   User,
 } from 'lucide-react'
-import ExportModal from '@/components/tools/ExportModal'
+import ExportModal from '../ExportModal'
 import MetadataPanel from '@/components/shared/MetadataPanel'
 import CustomSitemapNode from './CustomSitemapNode'
 
@@ -277,7 +277,10 @@ function FlowCanvas({
   )
 }
 
+import { useSearchParams } from 'next/navigation'
+
 function VisualSitemapContent() {
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const [url, setUrl] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<ValidationIssue | null>(null)
@@ -615,29 +618,40 @@ function VisualSitemapContent() {
     }
   }, [captureEntireCanvas])
 
-  const getExportPayload = useCallback(async (format: string) => {
-    if (format === 'svg' || format === 'png') {
-      return captureEntireCanvas(format as 'png' | 'svg')
-    }
+  // Corrected logic:
+  const getExportPayload = useCallback(async (format: string) => {
+    // FIX: Explicitly include 'pdf' here and force it to use SVG capture.
+    if (format === 'svg' || format === 'png' || format === 'pdf') {
+      // PDF conversion works best when based on vector (SVG) data.
+      const captureFormat = format === 'pdf' ? 'svg' : (format as 'png' | 'svg');
 
-    if (format === 'txt') {
-      if (!sitemapRaw || !sitemapRaw.pages) return null
-      const gather = (nodes?: SitemapNode[]): string[] => {
-        if (!nodes) return []
-        let out: string[] = []
-        nodes.forEach((n: SitemapNode) => {
-          if (n.url) out.push(n.url)
-          if (n.children) out = out.concat(gather(n.children))
-        })
-        return out
+      // Note: captureEntireCanvas returns the data URL of the image/svg
+      const payload = await captureEntireCanvas(captureFormat);
+      
+      // If requesting PDF, we send the SVG payload data but label it as 'pdf' for the server.
+      if (format === 'pdf') {
+          return { data: payload.data, mime: payload.mime, format: 'pdf' };
       }
-      const urls = gather(sitemapRaw.pages)
-      return { data: urls.join('\n'), mime: 'text/plain' }
+      return payload;
     }
 
-    return null
-  }, [captureEntireCanvas, sitemapRaw])
+ if (format === 'txt') {
+ if (!sitemapRaw || !sitemapRaw.pages) return null
+ const gather = (nodes?: SitemapNode[]): string[] => {
+ if (!nodes) return []
+ let out: string[] = []
+ nodes.forEach((n: SitemapNode) => {
+ if (n.url) out.push(n.url)
+ if (n.children) out = out.concat(gather(n.children))
+})
+ return out
+}
+ const urls = gather(sitemapRaw.pages)
+ return { data: urls.join('\n'), mime: 'text/plain' }
+ }
 
+ return null
+ }, [captureEntireCanvas, sitemapRaw])
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>): void => {
     if (e.key === 'Enter') generateVisual()
   }
@@ -706,18 +720,26 @@ function VisualSitemapContent() {
     }
   }, [searchQuery, nodes, reactFlowInstance, setNodes])
 
+  // On mount, read ?url= param and auto-generate if present
   useEffect(() => {
     try {
       const saved = localStorage.getItem('sitemap_theme')
       if (saved === 'dark' || saved === 'light') {
         setTheme(saved as 'dark' | 'light')
-        return
+      } else {
+        const prefersDark = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        setTheme(prefersDark ? 'dark' : 'light')
       }
-    } catch {
-      // ignore
+    } catch {}
+
+    // Routing fix: auto-fill and generate if url param exists
+    if (searchParams) {
+      const urlParam = searchParams.get('url')
+      if (urlParam) {
+        setUrl(urlParam)
+        setTimeout(() => generateVisual(), 100)
+      }
     }
-    const prefersDark = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-    setTheme(prefersDark ? 'dark' : 'light')
   }, [])
 
   useEffect(() => {
@@ -1016,8 +1038,9 @@ function VisualSitemapContent() {
       {showExport && (
         <ExportModal
           onClose={() => setShowExport(false)}
-          getExportPayload={getExportPayload}
           initialUrl={url}
+          getExportPayload={getExportPayload}
+          currentPage={'visual'}
         />
       )}
 

@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState, FC, useEffect } from "react";
-import Link from "next/link"; // ✅ FIX: Use Next.js Link for navigation
+import Link from "next/link";
+// IMPORT FIX: Use usePathname for reliable route checking
 import { Menu, X, Code, Home, List, Trello, LucideIcon } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 // --- 1. Navigation Data ---
 interface NavLink {
@@ -20,33 +22,32 @@ const navLinks: NavLink[] = [
 
 /**
  * A modern, responsive Navbar component with high-contrast Orange accents.
- * FIX: Uses Next.js <Link> instead of <a> to prevent ESLint build errors.
  */
 export const Navbar: FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
-
-  // Track current path (client-side only)
-  const [currentPage, setCurrentPage] = useState("/");
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setCurrentPage(window.location.pathname);
-    }
-  }, []);
+  
+  // FIX: Get the current path reliably using the hook
+  const currentPath = usePathname() || "/"; 
 
   const getLinkClass = (href: string) => {
-    const isExactMatch = currentPage === href;
-    const isSubdirectoryMatch = href !== "/" && currentPage.startsWith(href);
-    const isActive = isExactMatch || isSubdirectoryMatch;
+    // Determine the base path for comparison (e.g., '/xml-generator')
+    const basePath = href === '/' ? '/' : href.split('?')[0];
+
+    // FIX: Simplified logic to determine active state
+    // 1. Is it an exact match?
+    // 2. Or is it a subdirectory match (but not for the home page)?
+    const isActive = 
+      currentPath === basePath || 
+      (basePath !== '/' && currentPath.startsWith(basePath));
 
     return `inline-flex items-center px-4 py-2 rounded-xl text-sm font-semibold 
-            transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-orange-500
-            ${
-              isActive
-                ? "bg-orange-600 text-white shadow-md"
-                : "text-gray-300 hover:bg-gray-700 hover:text-orange-400"
-            }`;
+             transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-orange-500
+             ${
+               isActive
+                 ? "bg-orange-600 text-white shadow-md"
+                 : "text-gray-300 hover:bg-gray-700 hover:text-orange-400"
+             }`;
   };
 
   return (
@@ -58,7 +59,7 @@ export const Navbar: FC = () => {
             <Link
               href="/"
               className="flex items-center text-3xl font-extrabold text-orange-400 hover:text-orange-300 
-                         transition duration-300 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          transition duration-300 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
               Sitemap Tools Kit
             </Link>
@@ -80,8 +81,8 @@ export const Navbar: FC = () => {
               onClick={toggleMenu}
               type="button"
               className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 
-                       hover:text-white hover:bg-gray-800 focus:outline-none focus:ring-2 
-                       focus:ring-inset focus:ring-orange-500 transition duration-300"
+                         hover:text-white hover:bg-gray-800 focus:outline-none focus:ring-2 
+                         focus:ring-inset focus:ring-orange-500 transition duration-300"
               aria-controls="mobile-menu"
               aria-expanded={isMenuOpen}
             >
