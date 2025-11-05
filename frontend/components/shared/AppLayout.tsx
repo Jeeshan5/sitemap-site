@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, FC, useEffect } from "react";
+import React, { useState, FC } from "react";
 import Link from "next/link";
 // IMPORT FIX: Use usePathname for reliable route checking
 import { Menu, X, Code, Home, List, Trello, LucideIcon } from "lucide-react";

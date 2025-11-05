@@ -64,45 +64,41 @@ const ExportModal = ({
 
   // --- CRITICAL DOWNLOAD HELPER FUNCTION (Uses new filename helper) ---
   const downloadRaw = async (content: string | ArrayBuffer | ArrayBufferView | null, mime: string, ext: string, isBase64 = false): Promise<void> => {
-    if (!content) return;
-      
-    let blob: Blob;
-
-    if (typeof content === 'string' && content.startsWith('data:')) {
-        try {
-            // Use fetch to reliably convert data URL (base64 or encoded) to a Blob
-            const res = await fetch(content);
-            blob = await res.blob();
-        } catch (e) {
-            console.error("Failed to fetch data URL during download:", e);
-            return; 
-        }
-    } else if (typeof content === 'string') {
-        // plain string content
-        blob = new Blob([content], { type: mime });
-    } else if (content instanceof ArrayBuffer) {
-        // direct ArrayBuffer
-        blob = new Blob([content], { type: mime });
-    } else {
-        // content is an ArrayBufferView (e.g., Uint8Array). Normalize to a Uint8Array slice to ensure Blob accepts it.
-        const view = content as ArrayBufferView;
-        // Create a Uint8Array over the view's buffer and slice the exact byte range to get a standalone copy
-        // (this avoids issues with SharedArrayBuffer vs ArrayBuffer typings and produces a Blob-compatible part)
-        const uint8 = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
-        const uint8Copy = uint8.slice();
-        blob = new Blob([uint8Copy], { type: mime });
+  if (!content) return;
+  let blob: Blob;
+  if (typeof content === 'string' && content.startsWith('data:')) {
+    try {
+      // Use fetch to reliably convert data URL (base64 or encoded) to a Blob
+      const res = await fetch(content);
+      blob = await res.blob();
+    } catch (e) {
+      console.error("Failed to fetch data URL during download:", e);
+      return; 
     }
-
-    const filename = getFilenameFromUrl(initialUrl || 'placeholder.com', ext); 
-
-    const objectUrl = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = objectUrl;
-    a.download = filename; // Set the new descriptive filename
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(objectUrl);
+  } else if (typeof content === 'string') {
+    // plain string content
+    blob = new Blob([content], { type: mime });
+  } else if (content instanceof ArrayBuffer) {
+    // direct ArrayBuffer
+    blob = new Blob([content], { type: mime });
+  } else {
+    // content is an ArrayBufferView (e.g., Uint8Array). Normalize to a Uint8Array slice to ensure Blob accepts it.
+    const view = content as ArrayBufferView;
+    // Create a Uint8Array over the view's buffer and slice the exact byte range to get a standalone copy
+    // (this avoids issues with SharedArrayBuffer vs ArrayBuffer typings and produces a Blob-compatible part)
+    const uint8 = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+    const uint8Copy = uint8.slice();
+    blob = new Blob([uint8Copy], { type: mime });
+  }
+  const filename = getFilenameFromUrl(initialUrl || 'placeholder.com', ext); 
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = filename; // Set the new descriptive filename
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(objectUrl);
   };
   // --- END OF CRITICAL DOWNLOAD HELPER FUNCTION ---
 
@@ -122,7 +118,7 @@ const ExportModal = ({
       // --- CLIENT-SIDE DOWNLOADS ---
       
       if (getExportPayload) {
-        let payload = await getExportPayload(format)
+  const payload = await getExportPayload(format)
         
         if (!payload || !payload.data) {
           if (['png', 'svg', 'pdf'].includes(format)) return;

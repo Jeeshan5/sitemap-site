@@ -277,7 +277,6 @@ function FlowCanvas({
   )
 }
 
-import { useSearchParams } from 'next/navigation'
 
 function VisualSitemapContent() {
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -740,7 +739,7 @@ function VisualSitemapContent() {
         setTimeout(() => generateVisual(), 100)
       }
     }
-  }, [])
+  }, [generateVisual, searchParams])
 
   useEffect(() => {
     try {
