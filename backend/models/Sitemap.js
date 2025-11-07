@@ -2,46 +2,60 @@ const mongoose = require('mongoose');
 
 // Define the structure for storing sitemap generation data
 const SitemapSchema = new mongoose.Schema({
-    // User ID or session identifier (for linking to the user later)
+    // User ID or session identifier
     userId: {
         type: String,
         required: true,
-        default: 'anonymous_user' // Placeholder until user authentication is added
+        default: 'anonymous_user'
     },
     // The starting URL that was crawled
     startUrl: {
         type: String,
         required: true,
     },
-    // The type of sitemap generated (e.g., 'xml', 'html', 'visual')
+    // The type of sitemap generated
     type: {
         type: String,
         required: true,
         enum: ['xml', 'html', 'visual']
     },
-    // The final generated content (e.g., the XML string, or structured HTML data)
+    // The final generated content
     content: {
-        type: mongoose.Schema.Types.Mixed, // Allows flexible data types (string for XML, object for visual)
+        type: mongoose.Schema.Types.Mixed,
         required: true
     },
-    // List of URLs found during the crawl (for statistics and reference)
+    // List of URLs found during the crawl
     urlsFound: [
         {
             loc: String,
             lastMod: Date,
             changeFreq: String,
-            priority: Number
+            priority: Number,
+            // NEW: Add category field for hierarchical organization
+            category: {
+                type: String,
+                enum: ['page', 'blog', 'image', 'media', 'other'],
+                default: 'page'
+            }
         }
     ],
+    // NEW: Statistics about the sitemap
+    statistics: {
+        pages: { type: Number, default: 0 },
+        blogs: { type: Number, default: 0 },
+        images: { type: Number, default: 0 },
+        media: { type: Number, default: 0 },
+        other: { type: Number, default: 0 }
+    },
     // Metadata for tracking
     createdAt: {
         type: Date,
         default: Date.now,
     },
-    durationMs: { // How long the crawling/generation process took
+    durationMs: {
         type: Number
     },
-    sizeBytes: { // Size of the final output
+    sizeBytes: {
         type: Number
     }
 });

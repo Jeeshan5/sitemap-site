@@ -53,14 +53,19 @@ exports.generateHtmlSitemap = async (req, res, next) => {
             });
         }
 
-        // 6. Build HTML
+        // 6. Build hierarchical HTML sitemap with categories
+        console.log(`Building hierarchical HTML sitemap with ${urlsFound.length} URLs`);
         const htmlOutput = buildHtmlSitemap(urlsFound, validUrl);
 
-        // 7. Return response with warnings if any
+        // 7. Calculate statistics for the response
+        const stats = categorizeUrlStats(urlsFound);
+
+        // 8. Return response with warnings and stats
         res.status(200).json({
-            message: 'HTML Sitemap generated successfully.',
+            message: 'Hierarchical HTML Sitemap generated successfully.',
             html: htmlOutput,
             urlCount: urlsFound.length,
+            statistics: stats,
             warnings: validation.warnings.length > 0 ? validation.warnings : undefined
         });
 
@@ -82,6 +87,40 @@ exports.generateHtmlSitemap = async (req, res, next) => {
         });
     }
 };
+
+/**
+ * Helper function to categorize URLs and return stats
+ * @param {Array<string>} urls - List of URLs
+ * @returns {Object} Statistics by category
+ */
+function categorizeUrlStats(urls) {
+    const stats = {
+        pages: 0,
+        blogs: 0,
+        images: 0,
+        media: 0,
+        other: 0
+    };
+
+    urls.forEach(url => {
+        const lowerUrl = url.toLowerCase();
+        
+        if (lowerUrl.includes('/blog') || lowerUrl.includes('/post') || 
+            lowerUrl.includes('/article') || lowerUrl.includes('/news')) {
+            stats.blogs++;
+        } else if (lowerUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
+            stats.images++;
+        } else if (lowerUrl.match(/\.(pdf|doc|docx|mp4|mp3|zip)$/i)) {
+            stats.media++;
+        } else if (!lowerUrl.match(/\.(css|js|json|xml)$/i)) {
+            stats.pages++;
+        } else {
+            stats.other++;
+        }
+    });
+
+    return stats;
+}
 
 exports.getHtmlSitemap = async (req, res, next) => {
     try {

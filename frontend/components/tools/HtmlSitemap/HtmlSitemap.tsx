@@ -2,7 +2,7 @@
 
 import { useState, FC } from 'react'
 import ExportModal from '../ExportModal'
-import { Download, Loader2, Copy, Check, AlertTriangle, XCircle, ArrowLeft, Send, Maximize2, FileText, Code } from 'lucide-react' // Added Code icon for XML
+import { Download, Loader2, Copy, Check, AlertTriangle, XCircle, ArrowLeft, Send, Maximize2, FileText, Code, BarChart3 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
@@ -16,6 +16,14 @@ interface ValidationIssue {
     suggestion?: string
 }
 
+interface SitemapStatistics {
+    pages: number
+    blogs: number
+    images: number
+    media: number
+    other: number
+}
+
 const HtmlSitemap: FC = () => {
     const router = useRouter()
     const [url, setUrl] = useState('')
@@ -25,6 +33,8 @@ const HtmlSitemap: FC = () => {
     const [warnings, setWarnings] = useState<string[]>([])
     const [copied, setCopied] = useState(false)
     const [showExport, setShowExport] = useState(false)
+    const [statistics, setStatistics] = useState<SitemapStatistics | null>(null)
+    const [urlCount, setUrlCount] = useState<number>(0)
 
     const generateHtml = async () => {
         if (!url) {
@@ -36,9 +46,10 @@ const HtmlSitemap: FC = () => {
         setError(null)
         setResult('')
         setWarnings([])
+        setStatistics(null)
+        setUrlCount(0)
 
         try {
-            // ORIGINAL API CALL LOGIC IS HERE:
             const response = await fetch(`${API_URL}/generate-html`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -53,8 +64,15 @@ const HtmlSitemap: FC = () => {
             }
 
             setResult(data.html)
+            setUrlCount(data.urlCount || 0)
+            
             if (data.warnings) {
                 setWarnings(data.warnings)
+            }
+            
+            // NEW: Set statistics from response
+            if (data.statistics) {
+                setStatistics(data.statistics)
             }
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : String(err)
@@ -64,7 +82,6 @@ const HtmlSitemap: FC = () => {
         }
     }
 
-    // NEW FUNCTIONALITY: Redirects to the XML Generator page
     const exportToXmlGenerator = () => {
         if (url) {
             router.push(`/xml-generator?url=${encodeURIComponent(url)}`);
@@ -89,7 +106,7 @@ const HtmlSitemap: FC = () => {
             textarea.value = result
             document.body.appendChild(textarea)
             textarea.select()
-            document.execCommand('copy') // Using document.execCommand for iFrame compatibility
+            document.execCommand('copy')
             document.body.removeChild(textarea)
 
             setCopied(true)
@@ -102,7 +119,6 @@ const HtmlSitemap: FC = () => {
     return (
         <div className="min-h-screen bg-[#0E1428] text-white p-4 sm:p-8 font-inter">
             <div className="max-w-4xl mx-auto">
-                {/* Back button with subtle animation */}
                 <button
                     onClick={() => router.push('/')}
                     className="flex items-center text-purple-400 hover:text-purple-300 mb-8 font-medium transition duration-300 group hover:scale-[1.02]"
@@ -123,7 +139,7 @@ const HtmlSitemap: FC = () => {
                     </div>
                     
                     <p className="text-gray-400 mt-4 mb-10 text-lg">
-                        Crawl your website to create user-friendly, nested **HTML sitemaps** for better navigation and accessibility.
+                        Generate <strong>hierarchical HTML sitemaps</strong> organized by pages, blogs, images, and media for better navigation.
                     </p>
 
                     {/* Input & Generate */}
@@ -138,7 +154,6 @@ const HtmlSitemap: FC = () => {
                                 value={url}
                                 onChange={(e) => setUrl(e.target.value)}
                                 placeholder="https://example.com"
-                                // FIX APPLIED: Using backticks (`...`) for multi-line string
                                 className={`w-full p-4 border-2 border-[#A855F7]/50 rounded-xl bg-gray-900/40 text-white placeholder-gray-500 
                                            focus:ring-4 focus:ring-[#EC4899]/30 focus:border-[#EC4899] transition-all duration-300 
                                            shadow-inner shadow-black/20`}
@@ -158,19 +173,17 @@ const HtmlSitemap: FC = () => {
                             {loading ? (
                                 <>
                                     <Loader2 className="animate-spin" size={22} />
-                                    Building HTML Sitemap...
+                                    Building Hierarchical Sitemap...
                                 </>
                             ) : (
                                 <>
                                     <Send size={20} />
-                                    Generate HTML Sitemap
+                                    Generate Hierarchical Sitemap
                                 </>
                             )}
                         </button>
                     </div>
 
-                    {/* Feedback Section (Errors/Warnings) */}
-                    
                     {/* Error Messages */}
                     {(error && error.issues && error.issues.length > 0) || (error && !error.issues) ? (
                         <div className="mt-8 p-6 bg-red-900/30 border border-red-700/50 rounded-xl backdrop-blur-sm animate-fade-in-down">
@@ -196,7 +209,6 @@ const HtmlSitemap: FC = () => {
                         </div>
                     ) : null}
 
-
                     {warnings.length > 0 && (
                         <div className="mt-8 p-6 bg-yellow-900/30 border-l-4 border-yellow-500 rounded-xl backdrop-blur-sm animate-fade-in-down">
                             <div className="flex items-start gap-3">
@@ -211,15 +223,46 @@ const HtmlSitemap: FC = () => {
                         </div>
                     )}
 
+                    {/* NEW: Statistics Panel */}
+                    {statistics && (
+                        <div className="mt-8 p-6 bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-500/50 rounded-xl backdrop-blur-sm animate-fade-in">
+                            <div className="flex items-center gap-3 mb-4">
+                                <BarChart3 className="text-purple-400" size={24} />
+                                <h3 className="font-semibold text-purple-300 text-lg">Sitemap Statistics</h3>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                <div className="bg-gray-900/50 p-3 rounded-lg text-center">
+                                    <div className="text-2xl font-bold text-white">{urlCount}</div>
+                                    <div className="text-xs text-gray-400 mt-1">Total URLs</div>
+                                </div>
+                                <div className="bg-gray-900/50 p-3 rounded-lg text-center">
+                                    <div className="text-2xl font-bold text-blue-400">{statistics.pages}</div>
+                                    <div className="text-xs text-gray-400 mt-1">Pages</div>
+                                </div>
+                                <div className="bg-gray-900/50 p-3 rounded-lg text-center">
+                                    <div className="text-2xl font-bold text-green-400">{statistics.blogs}</div>
+                                    <div className="text-xs text-gray-400 mt-1">Blog Posts</div>
+                                </div>
+                                <div className="bg-gray-900/50 p-3 rounded-lg text-center">
+                                    <div className="text-2xl font-bold text-yellow-400">{statistics.images}</div>
+                                    <div className="text-xs text-gray-400 mt-1">Images</div>
+                                </div>
+                                <div className="bg-gray-900/50 p-3 rounded-lg text-center">
+                                    <div className="text-2xl font-bold text-purple-400">{statistics.media}</div>
+                                    <div className="text-xs text-gray-400 mt-1">Media Files</div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Result Display */}
                     {result && (
                         <div className="mt-10 space-y-6 animate-fade-in">
                             <div className="flex items-center justify-between flex-wrap gap-3 p-3 bg-[#1C243B] rounded-lg border-b border-[#A855F7]/30">
                                 <h2 className="text-2xl font-extrabold text-purple-400">
-                                    Generated HTML Code
+                                    Generated Hierarchical HTML
                                 </h2>
 
-                                {/* Download + Export buttons */}
                                 <div className="flex items-center gap-3">
                                     <button
                                         onClick={copyToClipboard}
@@ -232,13 +275,12 @@ const HtmlSitemap: FC = () => {
                                         {copied ? 'Copied!' : 'Copy Code'}
                                     </button>
 
-                                    {/* MODIFIED BUTTON: Changed from Download HTML to Export to XML */}
                                     <button
                                         onClick={exportToXmlGenerator}
                                         className={`flex items-center gap-2 bg-gradient-to-r from-cyan-600 to-blue-600 text-white px-4 py-2 rounded-xl 
                                                     hover:from-cyan-700 hover:to-blue-700 transition-all duration-300 font-medium shadow-md shadow-cyan-500/30 hover:shadow-lg hover:scale-[1.05]`}
                                     >
-                                        <Code size={18} /> {/* Changed icon to Code for XML */}
+                                        <Code size={18} />
                                         Export to XML
                                     </button>
 
@@ -263,7 +305,6 @@ const HtmlSitemap: FC = () => {
                 </div>
             </div>
             
-            {/* Styles for animation utility (Needed for the modern UI) */}
             <style jsx global>{`
                 @keyframes gradient-shift {
                     0% { background-position: 0% 50%; }
@@ -294,11 +335,9 @@ const HtmlSitemap: FC = () => {
                 <ExportModal
                     onClose={() => setShowExport(false)}
                     initialUrl={url}
-                    // Hides the 'HTML' button in the modal since we have dedicated Download/Export buttons
-                   excludeFormats={['html']}
+                    excludeFormats={['html']}
                     getExportPayload={async (format) => {
                         if (!result) return null
-                        // For non-HTML formats (like PDF, TXT), return the HTML content
                         return { data: result, mime: 'text/html' }
                     }}
                 />

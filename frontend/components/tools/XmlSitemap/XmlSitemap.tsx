@@ -269,16 +269,18 @@ const XmlSitemap: FC = () => {
         <ExportModal
           onClose={() => setShowExport(false)}
           initialUrl={url}
+          currentPage="xml"
+          excludeFormats={["xml"]}
           getExportPayload={async (format) => {
-            if (!result) return null
-            // Visual link: open /visual-builder?url=...
-            if (format === 'visual') {
+            if (!result) return null;
+            // Visual link: open /visual-builder?url=... (no backend crawl here)
+            if (format === "visual") {
               if (url) {
-                window.open(`/visual-builder?url=${encodeURIComponent(url)}`, '_blank');
+                window.open(`/visual-builder?url=${encodeURIComponent(url)}`, "_blank");
                 return null;
               }
             }
-            return { data: result, mime: 'application/xml' }
+            return { data: result, mime: "application/xml" };
           }}
         />
       )}
