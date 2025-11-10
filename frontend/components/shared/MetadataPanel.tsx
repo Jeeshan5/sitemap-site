@@ -58,7 +58,7 @@ const MetadataPanel: React.FC<MetadataPanelProps> = ({ nodeData, onClose, theme 
 
     return (
         <div 
-            className={`fixed right-0 top-0 h-full w-96 max-w-[90vw] shadow-2xl z-[100] transition-transform duration-300 transform translate-x-0 ${panelClasses}`}
+            className={`fixed right-0 top-0 h-full w-96 max-w-[90vw] shadow-2xl z-[200] transition-transform duration-300 transform translate-x-0 ${panelClasses}`}
             style={{ width: 'min(400px, 90vw)' }}
         >
             <div className="flex justify-between items-center p-4 border-b dark:border-slate-700">

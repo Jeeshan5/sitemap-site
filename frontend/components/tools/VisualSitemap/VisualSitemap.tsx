@@ -36,6 +36,7 @@ import {
 import ExportModal from '../ExportModal'
 import MetadataPanel from '@/components/shared/MetadataPanel'
 import CustomSitemapNode from './CustomSitemapNode'
+import SitemapLegend from './SitemapLegend'
 import React from 'react'
 
 // --- Custom styles and Layout Fixes ---
@@ -54,6 +55,9 @@ body{overflow:hidden!important;margin:0!important;padding:0!important;height:100
 .visual-zoom-control{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.96);padding:6px 10px;border-radius:9999px;box-shadow:0 6px 18px rgba(2,6,23,.06);border:1px solid rgba(226,232,240,.7)}
 .project-settings-panel{max-height:calc(100vh - 120px);overflow:auto}
 @media(max-width:768px){.custom-zoom-controls{display:none}.visual-bottom-toolbar{padding:6px 8px;gap:8px}.visual-bottom-toolbar button{padding:6px 8px;font-size:13px}.visual-zoom-control{padding:4px 8px;right:12px;bottom:12px}.visual-top-toolbar{display:none!important}.project-settings-panel{right:8px!important;top:72px!important;width:calc(100% - 24px)!important}.visual-mobile-controls{display:flex!important;top:96px!important;left:50%!important;transform:translateX(-50%)!important;width:calc(100% - 32px)!important;padding:6px 10px!important;box-sizing:border-box;z-index:70!important}.visual-mobile-controls>div{width:100%;background:rgba(255,255,255,.96);border-radius:12px;padding:6px 8px;box-shadow:0 8px 28px rgba(2,6,23,.12);align-items:center}.visual-mobile-controls input[type="search"]{height:40px;font-size:15px;padding-left:12px}.visual-mobile-controls button{width:40px;height:40px;padding:0;display:inline-flex;align-items:center;justify-content:center}.visual-bottom-toolbar{bottom:160px!important;transform:translateY(-20px)}.visual-zoom-control{transform:scale(.82);right:12px!important;bottom:140px!important}}
+@media(max-width:768px){
+  .visual-legend-panel{display:none}
+}
 @media(max-width:420px){.visual-top-toolbar{display:none!important}.visual-bottom-toolbar{left:50%!important;transform:translateX(-50%);padding:8px;gap:6px}.visual-bottom-toolbar .hidden.sm\:inline{display:none!important}.project-settings-panel{width:calc(100% - 24px)!important;max-height:calc(100vh - 120px)}.visual-mobile-controls{top:96px!important;left:50%!important;transform:translateX(-50%)!important;display:flex!important;padding:6px 8px!important;width:calc(100% - 32px)!important;box-sizing:border-box}.visual-mobile-controls>div{padding:6px 8px}.visual-bottom-toolbar{bottom:160px!important}.visual-zoom-control{transform:scale(.72);right:10px!important;bottom:160px!important}}
 .dark .visual-mobile-controls>div{background:rgba(15,23,36,.92);color:#e6eef7;border:1px solid rgba(255,255,255,.04)}.dark .visual-mobile-controls input{background:transparent;color:#e6eef7;border-color:rgba(255,255,255,.06)}.dark .visual-mobile-controls input::placeholder{color:rgba(226,232,240,.35)}.dark .project-settings-panel{background:#0f1724!important;color:#e6eef7!important;border-color:#1f2937!important}.dark .project-settings-panel .p-4,.dark .project-settings-panel .p-3{color:#e6eef7!important}.dark .project-settings-panel button{color:#e6eef7!important}.visual-mobile-controls{display:none}
 `
@@ -251,6 +255,14 @@ function FlowCanvas({
           className="z-40"
           style={{ right: '20px', bottom: '18px' }}
         >
+          {/* Legend Panel */}
+<Panel
+  position="top-left"
+  className="z-40 visual-legend-panel"
+  style={{ left: '20px', top: '20px' }}
+>
+  {isGenerated && <SitemapLegend theme={mapMode === 'dark' ? 'dark' : 'light'} />}
+</Panel>
           <div className="visual-zoom-control" style={{ alignItems: 'center' }}>
             <button
               onClick={() => onZoomOut?.()}
@@ -884,12 +896,22 @@ visibleChildren.forEach((child, i) => {
         </div>
       </div>
 
-      {selectedNode && (
-  <MetadataPanel 
-    nodeData={selectedNode as SitemapNode} 
-    onClose={() => setSelectedNode(null)} 
-    theme={theme} 
-  />
+     {selectedNode && (
+  <>
+    {/* Backdrop - click to close */}
+    <div 
+      className="fixed inset-0 bg-black/30 z-[90] backdrop-blur-sm"
+      onClick={() => setSelectedNode(null)}
+      aria-hidden="true"
+    />
+    
+    {/* Metadata Panel */}
+    <MetadataPanel 
+      nodeData={selectedNode as SitemapNode} 
+      onClose={() => setSelectedNode(null)} 
+      theme={theme} 
+    />
+  </>
 )}
       <div className="visual-mobile-controls fixed z-70" aria-hidden={false}>
         <div className="flex items-center gap-3 w-full justify-center">
