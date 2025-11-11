@@ -125,26 +125,58 @@ interface FlowCanvasProps {
   mapMode?: 'default' | 'dark' | 'blueprint' | 'bold'
 }
 
-const getMapStyles = (mode: string, level: number): { bg: string; border: string; text: string; headerBg?: string; urlText?: string; accent?: string } => {
-  if (mode === 'dark') {
-    return { bg: '#0f1724', border: '#24303b', text: '#e6eef7', headerBg: '#0b1220', urlText: '#cbd5e1', accent: '#06b6d4' }
-  }
-  if (mode === 'blueprint') {
-    if (level === 0) return { bg: '#e8f1fb', border: '#93c5fd', text: '#0f1724', headerBg: '#d9eafc', urlText: '#0b2540', accent: '#3b82f6' }
-    return { bg: '#f0f7ff', border: '#60a5fa', text: '#0b2540', headerBg: '#eaf4ff', urlText: '#075985', accent: '#2563eb' }
-  }
-  if (mode === 'bold') {
-    if (level === 0) return { bg: '#4edb16ff', border: '#92400e', text: '#7c2d12', headerBg: '#fff1e6', urlText: '#92400e', accent: '#dd2810ff' }
-    if (level === 1) return { bg: '#eef2ff', border: '#3730a3', text: '#1f2937', headerBg: '#eef2ff', urlText: '#3730a3', accent: '#6366f1' }
-    if (level === 2) return { bg: '#f0fdf4', border: '#065f46', text: '#064e3b', headerBg: '#ecfdf5', urlText: '#065f46', accent: '#10b981' }
-    return { bg: '#fff0f6', border: '#9f1239', text: '#4c0519', headerBg: '#fff0f6', urlText: '#9f1239', accent: '#ec4899' }
-  }
+const getMapStyles = (
+  mode: 'default' | 'dark' | 'blueprint' | 'bold',
+  node: { status?: number; isNoIndex?: boolean; isRedirect?: boolean } = {},
+  level: number = 0
+): { bg: string; border: string; text: string; headerBg?: string; urlText?: string; accent?: string } => {
+  const palettes = {
+    default: {
+      root:     { bg: 'linear-gradient(90deg,#38b2ac,#319795)', border: '#2c7a7b', text: '#ffffff', headerBg: undefined, urlText: '#ffffff' },
+      normal:   { bg: '#bbf7d0', border: '#10b981', text: '#064e3b' },             // green/teal
+      redirect: { bg: '#e5e7eb', border: '#6b7280', text: '#374151' },             // gray
+      error:    { bg: '#fee2e2', border: '#dc2626', text: '#7f1d1d' },             // red
+      noindex:  { bg: '#fef9c3', border: '#eab308', text: '#92400e' },             // yellow
+      accent:   '#10b981',
+    },
+    dark: {
+      root:     { bg: '#0f1724', border: '#24303b', text: '#e6eef7', headerBg: '#0b1220', urlText: '#cbd5e1' },
+      normal:   { bg: '#0f2f2b', border: '#10b981', text: '#d1fae5' },             // greenish in dark
+      redirect: { bg: '#111827', border: '#6b7280', text: '#d1d5db' },
+      error:    { bg: '#3f1d1d', border: '#ef4444', text: '#fecaca' },
+      noindex:  { bg: '#3b3006', border: '#eab308', text: '#fde68a' },
+      accent:   '#06b6d4',
+    },
+    blueprint: {
+      root:     { bg: '#e8f1fb', border: '#93c5fd', text: '#0f1724', headerBg: '#d9eafc', urlText: '#0b2540' },
+      normal:   { bg: '#f0f7ff', border: '#60a5fa', text: '#0b2540' },             // blue-ish
+      redirect: { bg: '#e5e7eb', border: '#64748b', text: '#334155' },
+      error:    { bg: '#fee2e2', border: '#ef4444', text: '#7f1d1d' },
+      noindex:  { bg: '#fef9c3', border: '#f59e0b', text: '#7c2d12' },
+      accent:   '#2563eb',
+    },
+    bold: {
+      root:     { bg: '#4edb16ff', border: '#166534', text: '#073b1a', headerBg: '#fff1e6', urlText: '#0b3a2b' },
+      normal:   { bg: '#dcfce7', border: '#16a34a', text: '#064e3b' },             // loud green
+      redirect: { bg: '#e5e7eb', border: '#6b7280', text: '#111827' },
+      error:    { bg: '#fee2e2', border: '#b91c1c', text: '#7f1d1d' },
+      noindex:  { bg: '#fef9c3', border: '#d97706', text: '#7c2d12' },
+      accent:   '#dd2810ff',
+    },
+  } as const;
 
-  if (level === 0) {
-    return { bg: 'linear-gradient(90deg, #38b2ac 0%, #319795 100%)', border: '#2c7a7b', text: '#111010ff', headerBg: undefined, urlText: '#ffffff', accent: '#10b981' }
-  }
-  return { bg: '#8b5cf6', border: '#7c3aed', text: '#ffffff', headerBg: undefined, urlText: '#ffffff', accent: '#8b5cf6' }
-}
+  const p = palettes[mode] ?? palettes.default;
+
+  // status-based overrides
+  if (node.status && node.status >= 400) return { ...p.error,  accent: p.accent };
+  if (node.isRedirect)                   return { ...p.redirect,accent: p.accent };
+  if (node.isNoIndex)                    return { ...p.noindex, accent: p.accent };
+
+  // root vs normal
+  if (level === 0) return { ...p.root,   accent: p.accent };
+  return            { ...p.normal, accent: p.accent };
+};
+
 
 const NODE_TYPES: NodeTypes = {}
 const EDGE_TYPES: EdgeTypes = {}
@@ -189,12 +221,33 @@ function FlowCanvas({
         style={{ width: '100%', height: '100%' }}
       >
         <MiniMap
-          nodeStrokeColor={(n) => getMapStyles(mapMode ?? 'default', (n.data?.level as number) ?? 0).border}
-          nodeColor={(n) => getMapStyles(mapMode ?? 'default', (n.data?.level as number) ?? 0).bg}
-          nodeBorderRadius={8}
-          maskColor="rgba(30, 41, 59, 0.08)"
-          position="bottom-right"
-        />
+  nodeStrokeColor={(n) =>
+    getMapStyles(
+      mapMode ?? 'default',
+      {
+        status: n.data?.status,
+        isRedirect: n.data?.isRedirect,
+        isNoIndex: n.data?.isNoIndex,
+      },
+      n.data?.level ?? 0
+    ).border
+  }
+  nodeColor={(n) =>
+    getMapStyles(
+      mapMode ?? 'default',
+      {
+        status: n.data?.status,
+        isRedirect: n.data?.isRedirect,
+        isNoIndex: n.data?.isNoIndex,
+      },
+      n.data?.level ?? 0
+    ).bg
+  }
+  nodeBorderRadius={8}
+  maskColor="rgba(30, 41, 59, 0.08)"
+  position="bottom-right"
+/>
+
         <Background variant={BackgroundVariant.Dots} gap={30} size={2.5} color="#e2e8f0" />
 
         <Panel
@@ -264,26 +317,43 @@ function FlowCanvas({
   {isGenerated && <SitemapLegend theme={mapMode === 'dark' ? 'dark' : 'light'} />}
 </Panel>
           <div className="visual-zoom-control" style={{ alignItems: 'center' }}>
-            <button
-              onClick={() => onZoomOut?.()}
-              title="Zoom Out"
-              aria-label="Zoom Out"
-              className="p-2 rounded-md"
-              style={{ background: mapMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'transparent', color: getMapStyles(mapMode ?? 'default', 0).accent }}
-            >
-              <Minus />
-            </button>
-            <div className="zoom-percentage" style={{ fontWeight: 700, color: getMapStyles(mapMode ?? 'default', 0).accent }}>{zoomLevel ?? 100}%</div>
-            <button
-              onClick={() => onZoomIn?.()}
-              title="Zoom In"
-              aria-label="Zoom In"
-              className="p-2 rounded-md"
-              style={{ background: mapMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'transparent', color: getMapStyles(mapMode ?? 'default', 0).accent }}
-            >
-              <Plus />
-            </button>
-          </div>
+  <button
+    onClick={() => onZoomOut?.()}
+    title="Zoom Out"
+    aria-label="Zoom Out"
+    className="p-2 rounded-md"
+    style={{ 
+      background: mapMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'transparent', 
+      color: getMapStyles(mapMode ?? 'default', {}, 0).accent 
+    }}
+  >
+    <Minus />
+  </button>
+
+  <div 
+    className="zoom-percentage" 
+    style={{ 
+      fontWeight: 700, 
+      color: getMapStyles(mapMode ?? 'default', {}, 0).accent 
+    }}
+  >
+    {zoomLevel ?? 100}%
+  </div>
+
+  <button
+    onClick={() => onZoomIn?.()}
+    title="Zoom In"
+    aria-label="Zoom In"
+    className="p-2 rounded-md"
+    style={{ 
+      background: mapMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'transparent', 
+      color: getMapStyles(mapMode ?? 'default', {}, 0).accent 
+    }}
+  >
+    <Plus />
+  </button>
+</div>
+
         </Panel>
       </ReactFlow>
     </div>
@@ -1030,15 +1100,20 @@ visibleChildren.forEach((child, i) => {
         <div className="fixed inset-0 flex items-center justify-center z-40 p-4">
           <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 border border-slate-300 w-[90vw] max-w-2xl text-center">
             <h1 className="text-2xl font-bold text-slate-900 mb-4">Visual Sitemap Builder</h1>
-            <input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://example.com"
-              className="w-full p-4 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-slate-50 text-lg mb-4"
-              onKeyPress={handleKeyPress}
-              style={{ color: url ? (getMapStyles(mapMode, 0).accent ?? undefined) : undefined }}
-            />
+           <input
+  type="url"
+  value={url}
+  onChange={(e) => setUrl(e.target.value)}
+  placeholder="https://example.com"
+  className="w-full p-4 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-slate-50 text-lg mb-4"
+  onKeyPress={handleKeyPress}
+  style={{
+    color: url
+      ? getMapStyles(mapMode ?? 'default', {}, 0).accent
+      : undefined
+  }}
+/>
+
             <button
               onClick={generateVisual}
               disabled={loading}

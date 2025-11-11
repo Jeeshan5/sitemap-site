@@ -15,7 +15,7 @@ exports.processVisualSitemap = async (req, res, next) => {
         try {
             validUrl = new URL(url).href;
         } catch (e) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 error: 'Invalid URL format.',
                 suggestion: 'Please enter a valid URL (e.g., https://example.com)'
             });
@@ -36,17 +36,12 @@ exports.processVisualSitemap = async (req, res, next) => {
             });
         }
 
-        // 4. If there are warnings, include them in response
-        if (validation.warnings.length > 0) {
-            console.log('⚠️ Warnings:', validation.warnings);
-        }
-
         // 5. Proceed with safe crawling
         console.log(`Starting safe crawl for: ${validUrl}`);
         const urlsFound = await startSafeCrawl(validUrl);
 
         if (urlsFound.length === 0) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 error: 'No URLs found.',
                 suggestion: 'The site might have no internal links or uses JavaScript for navigation.'
             });
@@ -55,7 +50,6 @@ exports.processVisualSitemap = async (req, res, next) => {
         // 6. Build hierarchical structure
         const pages = buildHierarchy(urlsFound, validUrl);
 
-        // 7. Return response with warnings if any
         res.status(200).json({
             message: 'Visual sitemap data generated.',
             pages: pages,
@@ -65,8 +59,7 @@ exports.processVisualSitemap = async (req, res, next) => {
 
     } catch (error) {
         console.error("Error in processVisualSitemap:", error.message);
-        
-        // Provide helpful error messages
+
         if (error.message.includes('SSL') || error.message.includes('certificate')) {
             return res.status(400).json({
                 error: 'SSL Security Error',
@@ -74,8 +67,8 @@ exports.processVisualSitemap = async (req, res, next) => {
                 suggestion: 'Try a different website or contact the site owner to fix their SSL certificate.'
             });
         }
-        
-        res.status(500).json({ 
+
+        res.status(500).json({
             error: 'Failed to generate sitemap',
             message: error.message
         });
@@ -85,51 +78,47 @@ exports.processVisualSitemap = async (req, res, next) => {
 exports.saveVisualSitemap = async (req, res, next) => {
     try {
         const { url, pages } = req.body;
-        
+
         if (!url || !pages) {
-            return res.status(400).json({ 
-                error: 'URL and pages data are required.' 
+            return res.status(400).json({
+                error: 'URL and pages data are required.'
             });
         }
-        
-        // TODO: Implement your save logic here
+
         const sitemapId = Date.now().toString();
-        
+
         res.status(200).json({
             message: 'Visual sitemap saved successfully',
             id: sitemapId,
             note: 'Implement your sitemap storage logic here'
         });
-        
+
     } catch (error) {
         console.error("Error in saveVisualSitemap:", error.message);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Failed to save visual sitemap',
             message: error.message
         });
     }
 };
 
-// FIXED: Proper hierarchical tree builder
+// ✅ FIXED: SINGLE ROOT (HOME ALWAYS ON TOP)
 function buildHierarchy(urls, baseUrl) {
     if (!urls || urls.length === 0) return [];
 
     const base = new URL(baseUrl).origin;
-    
-    // Create a map to store all nodes
     const nodeMap = new Map();
-    
-    // First pass: Create all nodes
+
+    // Create nodes for each URL
     urls.forEach(url => {
         const path = url.replace(base, '');
         const segments = path.split('/').filter(s => s);
-        
-        // Create full path for this URL
+
         let currentPath = '';
-        segments.forEach((segment, index) => {
+        segments.forEach(segment => {
             const previousPath = currentPath;
             currentPath += '/' + segment;
-            
+
             if (!nodeMap.has(currentPath)) {
                 const fullUrl = base + currentPath;
                 const title = segment
@@ -137,61 +126,47 @@ function buildHierarchy(urls, baseUrl) {
                     .replace(/_/g, ' ')
                     .replace(/\.(html|php|aspx)$/i, '')
                     .replace(/\b\w/g, l => l.toUpperCase());
-                
+
                 nodeMap.set(currentPath, {
                     url: fullUrl,
                     title: title || 'Home',
                     path: currentPath,
-                    parentPath: previousPath || null,
+                    parentPath: previousPath || '/',
                     children: []
                 });
             }
         });
-        
-        // Add root/homepage if not already added
-        if (segments.length === 0 || url === baseUrl) {
-            if (!nodeMap.has('/')) {
-                nodeMap.set('/', {
-                    url: baseUrl,
-                    title: 'Home',
-                    path: '/',
-                    parentPath: null,
-                    children: []
-                });
-            }
+
+        // Create root (Home)
+        if (!nodeMap.has('/')) {
+            nodeMap.set('/', {
+                url: baseUrl,
+                title: 'Home',
+                path: '/',
+                parentPath: null,
+                children: []
+            });
         }
     });
-    
-    // Second pass: Build parent-child relationships
-    const rootNodes = [];
-    
-    nodeMap.forEach((node, path) => {
-        if (node.parentPath === null || node.parentPath === '') {
-            // This is a root node
-            rootNodes.push(node);
-        } else {
-            // Find parent and add this node as a child
-            const parent = nodeMap.get(node.parentPath);
-            if (parent) {
-                parent.children.push(node);
-            } else {
-                // If parent not found, treat as root
-                rootNodes.push(node);
-            }
+
+    // Build parent-child relationships
+    nodeMap.forEach((node) => {
+        if (node.parentPath && nodeMap.has(node.parentPath)) {
+            nodeMap.get(node.parentPath).children.push(node);
         }
     });
-    
-    // Clean up: Remove path and parentPath from final output
-    const cleanNode = (node) => {
-        const cleaned = {
-            url: node.url,
-            title: node.title,
-            children: node.children.map(child => cleanNode(child))
-        };
-        return cleaned;
-    };
-    
-    return rootNodes.map(node => cleanNode(node));
+
+    // Force root to be single top node
+    const root = nodeMap.get('/');
+
+    // Clean output
+    const cleanNode = (node) => ({
+        url: node.url,
+        title: node.title,
+        children: (node.children || []).map(cleanNode)
+    });
+
+    return [ cleanNode(root) ];
 }
 
 module.exports = {

@@ -5,38 +5,36 @@ import { ExternalLink, Minus, Plus } from "lucide-react";
 
 type MapMode = "default" | "dark" | "blueprint" | "bold";
 
-const getMapStyles = (
-  mode: MapMode,
-  level: number
-): { bg: string; border: string; text: string; urlText?: string; accent?: string } => {
-  if (mode === "dark") {
-    return { bg: level === 0 ? "#1e293b" : "#0f172a", border: "#334155", text: "#e2e8f0" };
-  }
-
-  if (mode === "blueprint") {
-    return level === 0
-      ? { bg: "#dbeafe", border: "#60a5fa", text: "#0f172a" }
-      : { bg: "#f0f7ff", border: "#93c5fd", text: "#0f172a" };
-  }
-
-  if (mode === "bold") {
-    if (level === 0)
-      return { bg: "#fff3c4", border: "#f59e0b", text: "#7c2d12" };
-    if (level === 1)
-      return { bg: "#e0e7ff", border: "#6366f1", text: "#3730a3" };
-    return { bg: "#ecfdf5", border: "#10b981", text: "#064e3b" };
-  }
-
-  // Default
-  if (level === 0) {
-    return {
-      bg: "linear-gradient(90deg,#38b2ac,#319795)",
-      border: "#2c7a7b",
-      text: "#ffffff",
-    };
-  }
-  return { bg: "#8b5cf6", border: "#7c3aed", text: "#ffffff" };
-};
+const COLOR_PALETTES = {
+  default: {
+    root:     { bg: "linear-gradient(90deg,#38b2ac,#319795)", border: "#2c7a7b", text: "#ffffff" },
+    normal:   { bg: "#bbf7d0", border: "#10b981", text: "#064e3b" }, 
+    redirect: { bg: "#e5e7eb", border: "#6b7280", text: "#374151" }, 
+    noindex:  { bg: "#fef9c3", border: "#eab308", text: "#92400e" }, 
+    error:    { bg: "#fee2e2", border: "#dc2626", text: "#7f1d1d" },
+  },
+  dark: {
+    root:     { bg: "#0f1724", border: "#24303b", text: "#e6eef7" },
+    normal:   { bg: "#0f2f2b", border: "#10b981", text: "#d1fae5" },
+    redirect: { bg: "#111827", border: "#6b7280", text: "#d1d5db" },
+    noindex:  { bg: "#3b3006", border: "#eab308", text: "#fde68a" },
+    error:    { bg: "#3f1d1d", border: "#ef4444", text: "#fecaca" },
+  },
+  blueprint: {
+    root:     { bg: "#e8f1fb", border: "#93c5fd", text: "#0f1724" },
+    normal:   { bg: "#f0f7ff", border: "#60a5fa", text: "#0b2540" },
+    redirect: { bg: "#e5e7eb", border: "#64748b", text: "#334155" },
+    noindex:  { bg: "#fef9c3", border: "#f59e0b", text: "#7c2d12" },
+    error:    { bg: "#fee2e2", border: "#ef4444", text: "#7f1d1d" },
+  },
+  bold: {
+    root:     { bg: "#4edb16ff", border: "#166534", text: "#073b1a" },
+    normal:   { bg: "#dcfce7", border: "#16a34a", text: "#064e3b" },
+    redirect: { bg: "#e5e7eb", border: "#6b7280", text: "#111827" },
+    noindex:  { bg: "#fef9c3", border: "#d97706", text: "#7c2d12" },
+    error:    { bg: "#fee2e2", border: "#b91c1c", text: "#7f1d1d" },
+  },
+} as const;
 
 interface FlowNodeData {
   url?: string;
@@ -54,80 +52,54 @@ interface FlowNodeData {
   width?: number | string;
 }
 
-const getNodeStyleColors = (data: FlowNodeData) => {
-  const mode = data.mapMode || "default";
+const getNodeStyle = (data: FlowNodeData) => {
+  const palette = COLOR_PALETTES[data.mapMode ?? "default"];
   const level = data.level ?? 0;
 
-  // Base color based on map mode + depth
-  const base = getMapStyles(mode, level);
+  let base;
+  if (level === 0) base = palette.root;
+  else base = palette.normal;
 
-  let headerColor = base.bg;
-  let textColor = base.text;
-  let borderColor = base.border;
-  let bodyColor = "#ffffff";
+  if (data.status && data.status >= 400) base = palette.error;
+  else if (data.isRedirect) base = palette.redirect;
+  else if (data.isNoIndex) base = palette.noindex;
 
-  // Status Overrides
-  if (data.status && data.status >= 400) {
-    headerColor = "#ef4444";
-    textColor = "#ffffff";
-    borderColor = "#b91c1c";
-    bodyColor = "#fee2e2";
-  } else if (data.isRedirect) {
-    headerColor = "#9ca3af";
-    textColor = "#111827";
-    borderColor = "#6b7280";
-    bodyColor = "#f3f4f6";
-  } else if (data.isNoIndex) {
-    headerColor = "#fde047";
-    textColor = "#1f2937";
-    borderColor = "#ca8a04";
-    bodyColor = "#fffbe2";
-  }
-
-  // Gradient headers → enforce white text
-  if (typeof headerColor === "string" && headerColor.includes("gradient")) {
-    textColor = "#ffffff";
-  }
-
-  const boxShadow = data.highlight ? `0 0 14px ${borderColor}66` : "none";
-  const borderStyle = data.highlight
-    ? `2px solid ${borderColor}`
-    : `1px solid ${borderColor}`;
-
-  return { headerColor, bodyColor, textColor, borderStyle, boxShadow };
+  return {
+    headerColor: base.bg,
+    borderColor: base.border,
+    textColor: base.text,
+    bodyColor: "#ffffff",
+  };
 };
 
-const CustomSitemapNode: React.FC<NodeProps<FlowNodeData>> = ({ data, selected }) => {
-  const { headerColor, bodyColor, textColor, borderStyle, boxShadow } = useMemo(
-    () => getNodeStyleColors(data),
+const CustomSitemapNode: React.FC<NodeProps<FlowNodeData>> = ({ data }) => {
+  const { headerColor, borderColor, textColor, bodyColor } = useMemo(
+    () => getNodeStyle(data),
     [data]
   );
 
-  const handleToggleCollapse = useCallback(
+  const toggle = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (data.onToggleCollapse && data.url) data.onToggleCollapse(data.url);
+      data.onToggleCollapse?.(data.url!);
     },
     [data]
   );
-
-  const height = 70;
 
   return (
     <>
       <div
         style={{
           width: data.width ?? 260,
-          height,
+          height: 70,
           borderRadius: 8,
           background: bodyColor,
-          border: borderStyle,
-          boxShadow,
-          overflow: "hidden",
+          border: data.highlight ? `2px solid ${borderColor}` : `1px solid ${borderColor}`,
+          boxShadow: data.highlight ? `0 0 14px ${borderColor}66` : "none",
           cursor: "pointer",
+          overflow: "hidden",
         }}
       >
-        {/* HEADER */}
         <div
           style={{
             background: headerColor,
@@ -138,22 +110,15 @@ const CustomSitemapNode: React.FC<NodeProps<FlowNodeData>> = ({ data, selected }
             alignItems: "center",
             fontWeight: 600,
             fontSize: "13px",
-            minHeight: "30px",
           }}
         >
-          <span
-            style={{
-              textOverflow: "ellipsis",
-              overflow: "hidden",
-              whiteSpace: "nowrap",
-            }}
-          >
+          <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {data.title || data.url || "Untitled"}
           </span>
 
           <div style={{ display: "flex", gap: 6 }}>
             {data.hasChildren && (
-              <button onClick={handleToggleCollapse} style={{ color: textColor }}>
+              <button onClick={toggle} style={{ color: textColor }}>
                 {data.isCollapsed ? <Plus size={14} /> : <Minus size={14} />}
               </button>
             )}
@@ -165,14 +130,10 @@ const CustomSitemapNode: React.FC<NodeProps<FlowNodeData>> = ({ data, selected }
           </div>
         </div>
 
-        {/* BODY */}
         <div style={{ padding: "4px 10px", fontSize: "10px", color: "#475569" }}>
           <p className="truncate">{data.url}</p>
           {data.inboundLinks !== undefined && (
-            <div className="mt-1 text-xs">
-              Links: {data.inboundLinks}
-              {data.status && data.status !== 200 && ` | Status: ${data.status}`}
-            </div>
+            <div className="mt-1 text-xs">Links: {data.inboundLinks}</div>
           )}
         </div>
       </div>
