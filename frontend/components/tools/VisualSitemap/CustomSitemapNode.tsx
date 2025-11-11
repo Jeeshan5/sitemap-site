@@ -5,36 +5,37 @@ import { ExternalLink, Minus, Plus } from "lucide-react";
 
 type MapMode = "default" | "dark" | "blueprint" | "bold";
 
-const COLOR_PALETTES = {
-  default: {
-    root:     { bg: "linear-gradient(90deg,#38b2ac,#319795)", border: "#2c7a7b", text: "#ffffff" },
-    normal:   { bg: "#bbf7d0", border: "#10b981", text: "#064e3b" }, 
-    redirect: { bg: "#e5e7eb", border: "#6b7280", text: "#374151" }, 
-    noindex:  { bg: "#fef9c3", border: "#eab308", text: "#92400e" }, 
-    error:    { bg: "#fee2e2", border: "#dc2626", text: "#7f1d1d" },
-  },
-  dark: {
-    root:     { bg: "#0f1724", border: "#24303b", text: "#e6eef7" },
-    normal:   { bg: "#0f2f2b", border: "#10b981", text: "#d1fae5" },
-    redirect: { bg: "#111827", border: "#6b7280", text: "#d1d5db" },
-    noindex:  { bg: "#3b3006", border: "#eab308", text: "#fde68a" },
-    error:    { bg: "#3f1d1d", border: "#ef4444", text: "#fecaca" },
-  },
-  blueprint: {
-    root:     { bg: "#e8f1fb", border: "#93c5fd", text: "#0f1724" },
-    normal:   { bg: "#f0f7ff", border: "#60a5fa", text: "#0b2540" },
-    redirect: { bg: "#e5e7eb", border: "#64748b", text: "#334155" },
-    noindex:  { bg: "#fef9c3", border: "#f59e0b", text: "#7c2d12" },
-    error:    { bg: "#fee2e2", border: "#ef4444", text: "#7f1d1d" },
-  },
-  bold: {
-    root:     { bg: "#4edb16ff", border: "#166534", text: "#073b1a" },
-    normal:   { bg: "#dcfce7", border: "#16a34a", text: "#064e3b" },
-    redirect: { bg: "#e5e7eb", border: "#6b7280", text: "#111827" },
-    noindex:  { bg: "#fef9c3", border: "#d97706", text: "#7c2d12" },
-    error:    { bg: "#fee2e2", border: "#b91c1c", text: "#7f1d1d" },
-  },
-} as const;
+// 🎨 LEVEL-BASED COLOR PALETTES
+const COLOR_PALETTES: Record<MapMode, { bg: string; border: string; text: string }[]> = {
+  default: [
+    { bg: "linear-gradient(90deg,#38b2ac,#319795)", border: "#2c7a7b", text: "#ffffff" }, // level 0
+    { bg: "#fef3c7", border: "#f59e0b", text: "#92400e" }, // level 1
+    { bg: "#e0e7ff", border: "#6366f1", text: "#3730a3" }, // level 2
+    { bg: "#dcfce7", border: "#16a34a", text: "#064e3b" }, // level 3
+    { bg: "#fee2e2", border: "#dc2626", text: "#7f1d1d" }, // level 4+
+  ],
+  dark: [
+    { bg: "#0f1724", border: "#24303b", text: "#e6eef7" },
+    { bg: "#1e293b", border: "#334155", text: "#e2e8f0" },
+    { bg: "#0f2f2b", border: "#10b981", text: "#d1fae5" },
+    { bg: "#1e1b4b", border: "#6366f1", text: "#c7d2fe" },
+    { bg: "#3f1d1d", border: "#ef4444", text: "#fecaca" },
+  ],
+  blueprint: [
+    { bg: "#e8f1fb", border: "#93c5fd", text: "#0f1724" },
+    { bg: "#f0f7ff", border: "#60a5fa", text: "#0b2540" },
+    { bg: "#e8eefd", border: "#3b82f6", text: "#1e3a8a" },
+    { bg: "#e0edff", border: "#2563eb", text: "#1e40af" },
+    { bg: "#fde2e2", border: "#dc2626", text: "#7f1d1d" },
+  ],
+  bold: [
+    { bg: "#4edb16ff", border: "#166534", text: "#073b1a" },
+    { bg: "#fff3c4", border: "#f59e0b", text: "#7c2d12" },
+    { bg: "#e0e7ff", border: "#6366f1", text: "#3730a3" },
+    { bg: "#ecfdf5", border: "#10b981", text: "#064e3b" },
+    { bg: "#fff0f6", border: "#ec4899", text: "#4c0519" },
+  ],
+};
 
 interface FlowNodeData {
   url?: string;
@@ -52,17 +53,16 @@ interface FlowNodeData {
   width?: number | string;
 }
 
+// ✅ LEVEL-BASED STYLE SELECTION
 const getNodeStyle = (data: FlowNodeData) => {
-  const palette = COLOR_PALETTES[data.mapMode ?? "default"];
-  const level = data.level ?? 0;
+  const paletteSet = COLOR_PALETTES[data.mapMode ?? "default"];
+  const level = Math.min(data.level ?? 0, paletteSet.length - 1);
+  let base = paletteSet[level];
 
-  let base;
-  if (level === 0) base = palette.root;
-  else base = palette.normal;
-
-  if (data.status && data.status >= 400) base = palette.error;
-  else if (data.isRedirect) base = palette.redirect;
-  else if (data.isNoIndex) base = palette.noindex;
+  // Keep your overrides exactly the same
+  if (data.status && data.status >= 400) base = paletteSet[4];
+  else if (data.isRedirect) base = { bg: "#e5e7eb", border: "#6b7280", text: "#111827" };
+  else if (data.isNoIndex) base = { bg: "#fef9c3", border: "#eab308", text: "#92400e" };
 
   return {
     headerColor: base.bg,

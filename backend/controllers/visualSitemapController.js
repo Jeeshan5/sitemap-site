@@ -103,13 +103,13 @@ exports.saveVisualSitemap = async (req, res, next) => {
 };
 
 // ✅ FIXED: SINGLE ROOT (HOME ALWAYS ON TOP)
+// ✅ FIXED: SINGLE ROOT + LEVELS FOR COLOR STYLING
 function buildHierarchy(urls, baseUrl) {
     if (!urls || urls.length === 0) return [];
 
     const base = new URL(baseUrl).origin;
     const nodeMap = new Map();
 
-    // Create nodes for each URL
     urls.forEach(url => {
         const path = url.replace(base, '');
         const segments = path.split('/').filter(s => s);
@@ -122,8 +122,7 @@ function buildHierarchy(urls, baseUrl) {
             if (!nodeMap.has(currentPath)) {
                 const fullUrl = base + currentPath;
                 const title = segment
-                    .replace(/-/g, ' ')
-                    .replace(/_/g, ' ')
+                    .replace(/[-_]/g, ' ')
                     .replace(/\.(html|php|aspx)$/i, '')
                     .replace(/\b\w/g, l => l.toUpperCase());
 
@@ -137,7 +136,7 @@ function buildHierarchy(urls, baseUrl) {
             }
         });
 
-        // Create root (Home)
+        // Ensure root exists
         if (!nodeMap.has('/')) {
             nodeMap.set('/', {
                 url: baseUrl,
@@ -149,25 +148,26 @@ function buildHierarchy(urls, baseUrl) {
         }
     });
 
-    // Build parent-child relationships
+    // Parent → Child linking
     nodeMap.forEach((node) => {
         if (node.parentPath && nodeMap.has(node.parentPath)) {
             nodeMap.get(node.parentPath).children.push(node);
         }
     });
 
-    // Force root to be single top node
     const root = nodeMap.get('/');
 
-    // Clean output
-    const cleanNode = (node) => ({
+    // ✅ Add LEVEL so node color palette can differentiate depth
+    const cleanNode = (node, level = 0) => ({
         url: node.url,
         title: node.title,
-        children: (node.children || []).map(cleanNode)
+        level, // <---- IMPORTANT
+        children: (node.children || []).map(child => cleanNode(child, level + 1))
     });
 
     return [ cleanNode(root) ];
 }
+
 
 module.exports = {
     processVisualSitemap: exports.processVisualSitemap,

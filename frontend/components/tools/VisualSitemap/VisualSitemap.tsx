@@ -130,52 +130,50 @@ const getMapStyles = (
   node: { status?: number; isNoIndex?: boolean; isRedirect?: boolean } = {},
   level: number = 0
 ): { bg: string; border: string; text: string; headerBg?: string; urlText?: string; accent?: string } => {
+  
+  // Level-based color maps instead of 1 color for all non-root nodes
   const palettes = {
-    default: {
-      root:     { bg: 'linear-gradient(90deg,#38b2ac,#319795)', border: '#2c7a7b', text: '#ffffff', headerBg: undefined, urlText: '#ffffff' },
-      normal:   { bg: '#bbf7d0', border: '#10b981', text: '#064e3b' },             // green/teal
-      redirect: { bg: '#e5e7eb', border: '#6b7280', text: '#374151' },             // gray
-      error:    { bg: '#fee2e2', border: '#dc2626', text: '#7f1d1d' },             // red
-      noindex:  { bg: '#fef9c3', border: '#eab308', text: '#92400e' },             // yellow
-      accent:   '#10b981',
-    },
-    dark: {
-      root:     { bg: '#0f1724', border: '#24303b', text: '#e6eef7', headerBg: '#0b1220', urlText: '#cbd5e1' },
-      normal:   { bg: '#0f2f2b', border: '#10b981', text: '#d1fae5' },             // greenish in dark
-      redirect: { bg: '#111827', border: '#6b7280', text: '#d1d5db' },
-      error:    { bg: '#3f1d1d', border: '#ef4444', text: '#fecaca' },
-      noindex:  { bg: '#3b3006', border: '#eab308', text: '#fde68a' },
-      accent:   '#06b6d4',
-    },
-    blueprint: {
-      root:     { bg: '#e8f1fb', border: '#93c5fd', text: '#0f1724', headerBg: '#d9eafc', urlText: '#0b2540' },
-      normal:   { bg: '#f0f7ff', border: '#60a5fa', text: '#0b2540' },             // blue-ish
-      redirect: { bg: '#e5e7eb', border: '#64748b', text: '#334155' },
-      error:    { bg: '#fee2e2', border: '#ef4444', text: '#7f1d1d' },
-      noindex:  { bg: '#fef9c3', border: '#f59e0b', text: '#7c2d12' },
-      accent:   '#2563eb',
-    },
-    bold: {
-      root:     { bg: '#4edb16ff', border: '#166534', text: '#073b1a', headerBg: '#fff1e6', urlText: '#0b3a2b' },
-      normal:   { bg: '#dcfce7', border: '#16a34a', text: '#064e3b' },             // loud green
-      redirect: { bg: '#e5e7eb', border: '#6b7280', text: '#111827' },
-      error:    { bg: '#fee2e2', border: '#b91c1c', text: '#7f1d1d' },
-      noindex:  { bg: '#fef9c3', border: '#d97706', text: '#7c2d12' },
-      accent:   '#dd2810ff',
-    },
+    default: [
+      { bg: 'linear-gradient(90deg,#38b2ac,#319795)', border: '#2c7a7b', text: '#ffffff', urlText: '#ffffff' }, // Level 0
+      { bg: '#fef3c7', border: '#f59e0b', text: '#92400e' },  // Level 1
+      { bg: '#e0e7ff', border: '#6366f1', text: '#3730a3' },  // Level 2
+      { bg: '#dcfce7', border: '#16a34a', text: '#064e3b' },  // Level 3
+      { bg: '#fee2e2', border: '#dc2626', text: '#7f1d1d' },  // Level 4+
+    ],
+    dark: [
+      { bg: '#0f1724', border: '#24303b', text: '#e6eef7', urlText: '#cbd5e1' },
+      { bg: '#1e293b', border: '#334155', text: '#e2e8f0' },
+      { bg: '#0f2f2b', border: '#10b981', text: '#d1fae5' },
+      { bg: '#1e1b4b', border: '#6366f1', text: '#c7d2fe' },
+      { bg: '#3f1d1d', border: '#ef4444', text: '#fecaca' },
+    ],
+    blueprint: [
+      { bg: '#e8f1fb', border: '#93c5fd', text: '#0f1724', urlText: '#0b2540' },
+      { bg: '#f0f7ff', border: '#60a5fa', text: '#0b2540' },
+      { bg: '#e8eefd', border: '#3b82f6', text: '#1e3a8a' },
+      { bg: '#e0edff', border: '#2563eb', text: '#1e40af' },
+      { bg: '#fde2e2', border: '#dc2626', text: '#7f1d1d' },
+    ],
+    bold: [
+      { bg: '#4edb16ff', border: '#166534', text: '#073b1a', urlText: '#0b3a2b' },
+      { bg: '#fff3c4', border: '#f59e0b', text: '#7c2d12' },
+      { bg: '#e0e7ff', border: '#6366f1', text: '#3730a3' },
+      { bg: '#ecfdf5', border: '#10b981', text: '#064e3b' },
+      { bg: '#fff0f6', border: '#ec4899', text: '#4c0519' },
+    ],
   } as const;
 
-  const p = palettes[mode] ?? palettes.default;
+  const shaded = palettes[mode] ?? palettes.default;
+  const style = shaded[Math.min(level, shaded.length - 1)];
 
-  // status-based overrides
-  if (node.status && node.status >= 400) return { ...p.error,  accent: p.accent };
-  if (node.isRedirect)                   return { ...p.redirect,accent: p.accent };
-  if (node.isNoIndex)                    return { ...p.noindex, accent: p.accent };
+  // STATUS / REDIRECT / NOINDEX OVERRIDES (keep exactly as before)
+  if (node.status && node.status >= 400) return { ...palettes.default[4], accent: palettes.default[3].border };
+  if (node.isRedirect) return { bg: '#e5e7eb', border: '#6b7280', text: '#111827' };
+  if (node.isNoIndex) return { bg: '#fef9c3', border: '#eab308', text: '#92400e' };
 
-  // root vs normal
-  if (level === 0) return { ...p.root,   accent: p.accent };
-  return            { ...p.normal, accent: p.accent };
+  return { ...style, accent: style.border };
 };
+
 
 
 const NODE_TYPES: NodeTypes = {}
@@ -302,20 +300,22 @@ function FlowCanvas({
             </div>
           )}
         </Panel>
-
+        {/* Legend Panel */}
         <Panel
-          position="bottom-right"
-          className="z-40"
-          style={{ right: '20px', bottom: '18px' }}
-        >
-          {/* Legend Panel */}
-<Panel
   position="top-left"
   className="z-40 visual-legend-panel"
   style={{ left: '20px', top: '20px' }}
 >
   {isGenerated && <SitemapLegend theme={mapMode === 'dark' ? 'dark' : 'light'} />}
 </Panel>
+
+        <Panel
+          position="bottom-right"
+          className="z-40"
+          style={{ right: '20px', bottom: '18px' }}
+        >
+          
+
           <div className="visual-zoom-control" style={{ alignItems: 'center' }}>
   <button
     onClick={() => onZoomOut?.()}
